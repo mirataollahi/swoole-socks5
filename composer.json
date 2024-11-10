@@ -1,0 +1,10 @@
+{
+    "name": "pc/swoole-socks5",
+    "description": "Socks5 proxy server with php swoole",
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "require": {}
+}
