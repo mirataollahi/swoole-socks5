@@ -6,5 +6,7 @@
             "App\\": "app/"
         }
     },
-    "require": {}
+    "require": {
+      "ext-sockets": "*"
+    }
 }
