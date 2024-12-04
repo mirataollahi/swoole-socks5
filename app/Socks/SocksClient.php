@@ -26,7 +26,7 @@ class SocksClient
     public bool $isConnected = false;
     public bool $isClosing = false;
     public Server $server;
-
+    public ?int $targetSocketReceiverCid = null;
 
     /** Socks5 Protocol Info */
     public ?SocksVersion $socksVersion = null;
@@ -90,23 +90,39 @@ class SocksClient
      */
     public function handleSocks5ControlPacket(string $data): void
     {
-        if (Utils::hexCompare($data[0], '0x05')) {
-            if ($this->handshakeStatus === HandshakeStatus::NOT_STARTED || $this->handshakeStatus === HandshakeStatus::FAILED) {
-                $this->handleHandshakePacket($data);
-                return;
-            }
-
-            $data = substr($data, 2); // Remove SOCKS5 protocol header
-            $this->validateSocksPacket($data);
-
-            /** Command is CONNECT   */
-            if (Utils::hexCompare($data[1], '0x01')) {
-                $this->handleConnectCommandPacket($data);
-            }
-        } else {
-            $this->logger->error("Invalid SOCKS version from client $this->fd");
-            $this->close();
+        if ($this->handshakeStatus === HandshakeStatus::NOT_STARTED || $this->handshakeStatus === HandshakeStatus::FAILED) {
+            $this->handleHandshakePacket($data);
+            return;
         }
+
+        $commandCode = Utils::bin2hex($data[1] ?? false);
+        $rsvCode = Utils::bin2hex($data[2] ?? false);
+        $atypCode = Utils::bin2hex($data[3]?? false);
+        $dstAddrCode = Utils::bin2hex($data[4] ?? false);
+        $dstPortCode = Utils::bin2hex($data[5] ?? false);
+
+        /** Command is CONNECT   */
+        if ($commandCode === 0x01) {
+            $this->logger->info("Handling command connect ...");
+            $this->handleConnectCommandPacket($data);
+            return;
+        }
+
+        /** Command is CONNECT   */
+        if ($commandCode === 0x01) {
+            $this->logger->info("Handling command bind ... ");
+            // todo : Handling command bind
+            return;
+        }
+
+        if ($commandCode === 0x03){
+            $this->logger->info("Handling command UDP associate ... ");
+            // todo : Handling command UDP Associate
+
+        }
+
+
+
     }
 
     /**
@@ -265,7 +281,7 @@ class SocksClient
      */
     public function createTargetSocketCoroutine(string $host, string $port): void
     {
-        go(function () use ($host, $port) {
+        $this->targetSocketReceiverCid = go(function () use ($host, $port) {
             $this->targetSocket = new Socket(AF_INET, SOCK_STREAM, 0);
             $this->isConnected = $this->targetSocket->connect($host, $port, 3);
 
@@ -353,7 +369,10 @@ class SocksClient
         if ($this->server->exist($this->fd)) {
             $this->server->close($this->fd);
         }
+
+        if ($this->targetSocketReceiverCid){
+            Coroutine::cancel($this->targetSocketReceiverCid);
+            $this->targetSocketReceiverCid = null;
+        }
     }
-
-
 }
