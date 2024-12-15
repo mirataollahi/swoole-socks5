@@ -2,8 +2,8 @@
 
 namespace App\Tools;
 
-use Throwable;
 use Swoole\Coroutine;
+use Throwable;
 
 class Logger
 {
@@ -12,10 +12,6 @@ class Logger
     const WARNING = 8;
     const ERROR = 16;
     const DEBUG = 32;
-
-    public static bool $enableRemoteLogger = false;
-    public static bool $enableRpcLogger = true;
-    public static bool $enableGrpcLogger = true;
 
 
     const COLORS = [

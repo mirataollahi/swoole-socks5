@@ -2,6 +2,7 @@
 
 namespace App\Socks;
 
+use App\BaseServer;
 use App\Tools\Helper;
 use App\Tools\Logger;
 use Swoole\Server;
@@ -13,6 +14,8 @@ class SocksServer
     public int $port;
     public Logger $logger;
     public array $clients = [];
+    public ?string $authUsername = null;
+    public ?string $authPassword = null;
 
     public function __construct()
     {
@@ -24,8 +27,8 @@ class SocksServer
 
     public function initServer(): void
     {
-        $this->host = Helper::getEnv('SOCKET_HOST', '0.0.0.0');
-        $this->port = Helper::getEnv('SOCKET_PORT', 8700);
+        $this->host = Helper::getEnv('SOCKET_HOST', BaseServer::$socksHost);
+        $this->port = Helper::getEnv('SOCKET_PORT', BaseServer::$socksPort);
         $this->server = new Server($this->host, $this->port);
 
         $this->server->set([

@@ -1,7 +1,8 @@
-<?php
+<?php declare(strict_types = 1);
 
 namespace App\Socks;
 
+use App\BaseServer;
 use App\Exceptions\HandshakeErrorException;
 use App\Exceptions\InvalidPacketLengthException;
 use App\Exceptions\InvalidSocksVersionException;
@@ -17,60 +18,75 @@ use Throwable;
 
 class SocksClient
 {
+    /** @var Logger */
     public Logger $logger;
+    /** @var int */
     public int $fd;
+    /** @var int */
     public int $workerId;
+    /** @var int */
     public int $reactorId;
-    public array $userInfo = [];
+    /** @var array */
+    public array $userInfo;
+    /** @var Socket|null */
     private ?Socket $targetSocket = null;
-    public bool $isConnected = false;
-    public bool $isClosing = false;
+    /** @var bool */
+    private bool $isConnected = false;
+    /** @var bool */
+    private bool $isClosing = false;
+    /** @var Server */
     public Server $server;
+    /** @var int|null */
     public ?int $targetSocketReceiverCid = null;
 
     /** Socks5 Protocol Info */
+    /** @var SocksVersion|null */
     public ?SocksVersion $socksVersion = null;
+    /** @var array */
     public array $supportAuthMethods = [];
+    /** @var HandshakeStatus */
     public HandshakeStatus $handshakeStatus;
+    /** @var bool */
     private bool $authNeeded = false;
 
     public function __construct(Server $server, int $fd, int $reactorId, int $workerId, array $userInfo = [])
     {
-        $this->handshakeStatus = HandshakeStatus::NOT_STARTED;
         $this->server = $server;
-        $this->logger = new Logger("CLIENT_$fd");
         $this->fd = $fd;
         $this->reactorId = $reactorId;
         $this->workerId = $workerId;
         $this->userInfo = $userInfo;
-        $this->logger->success("Client with fd $fd connected in worker $workerId");
+        $this->handshakeStatus = HandshakeStatus::NOT_STARTED;
+        $this->logger = new Logger("CLIENT_$fd");
+
+        $this->logger->success("Client $fd connected in worker $workerId");
     }
 
     public function onReceive(string $data): void
     {
-        $this->logger->info("Client $this->fd received packet with length " . strlen($data));
         if ($this->isClosing) {
-            $this->logger->error("Client packet ignored because client is closing ...");
+            $this->logger->error("Ignoring packet since client $this->fd is closing");
             return;
         }
 
+        $len = strlen($data);
+        $this->logger->info("Client $this->fd received packet length: $len");
+
         try {
-            // If handshake not finished:
+            // Handshake not finished
             if ($this->handshakeStatus !== HandshakeStatus::FINISHED) {
-                // If we have chosen USER_PASS_AUTH and handshake was completed but auth not done yet:
+                // If we need auth and handshake is running, handle auth packet
                 if ($this->authNeeded && $this->handshakeStatus === HandshakeStatus::RUNNING) {
                     $this->handleAuthPacket($data);
-                    // After auth success, handshakeStatus set to FINISHED.
-                    return;
+                    return; // After successful auth, handshake is finished
                 }
 
-                // Otherwise, handle handshake packet
-                if (strlen($data) < 3) {
-                    throw new InvalidPacketLengthException("Initial handshake packet too short");
+                // Normal handshake
+                if ($len < 3) {
+                    throw new InvalidPacketLengthException("Handshake packet too short");
                 }
 
                 if (Utils::hexCompare($data[0], '0x05')) {
-                    // Handle handshake and method selection
                     $this->handleHandshakePacket($data);
                 } else {
                     throw new HandshakeErrorException("Unsupported SOCKS version or handshake error");
@@ -79,30 +95,27 @@ class SocksClient
             }
 
             // Handshake finished:
-            // If target socket not established yet, we are dealing with a control packet or something unexpected
             if ($this->targetSocket === null) {
-                if (strlen($data) < 3) {
+                // Expecting a SOCKS5 control packet or something invalid
+                if ($len < 3) {
                     throw new InvalidPacketLengthException("Control packet too short");
                 }
 
-                // SOCKS5 request must start with 0x05
                 if (Utils::hexCompare($data[0], '0x05')) {
                     $this->handleSocks5ControlPacket($data);
                 } else {
-                    // If not starting with 0x05, it might be raw data (though usually shouldn't happen before connect)
-                    $this->logger->info("Packet doesn't start with 0x05 after handshake. Possibly invalid or unexpected data.");
-                    // We can't forward anywhere yet, drop it or close:
-                    $this->logger->warning("No target connected, closing client.");
+                    $this->logger->warning("Invalid data after handshake, no target connected. Closing client $this->fd.");
                     $this->close();
                 }
+                return;
+            }
+
+            // Target socket is established
+            if ($this->isConnected) {
+                // Forward client data to the target
+                $this->targetSocket->send($data);
             } else {
-                // If we have a target socket and are connected, forward data to target
-                if ($this->isConnected) {
-                    $this->logger->info("Forwarding data to target for client $this->fd");
-                    $this->targetSocket->send($data);
-                } else {
-                    $this->logger->error("Target socket not connected for client $this->fd");
-                }
+                $this->logger->error("Target socket not connected for client $this->fd. Dropping data.");
             }
         } catch (Throwable $exception) {
             $this->handleException($exception);
@@ -110,273 +123,227 @@ class SocksClient
     }
 
     /**
-     * Handle SOCKS5 control packet after handshake and auth done.
+     * Handle SOCKS5 control packets after handshake.
      */
     public function handleSocks5ControlPacket(string $data): void
     {
-        $commandCode = ord($data[1]); // Command: 0x01=CONNECT,0x02=BIND,0x03=UDP ASSOC
-        // $rsvCode = ord($data[2]); // Normally 0x00
-        // Address Code = ord($data[3]); // Address type
-        // We'll parse them directly in handleConnectCommandPacket if needed
+        $cmd = ord($data[1]); // Command: CONNECT=0x01, BIND=0x02, UDP=0x03
 
-        if ($commandCode === 0x01) {
-            $this->logger->info("Handling command CONNECT...");
-            $this->handleConnectCommandPacket($data);
-        } elseif ($commandCode === 0x02) {
-            $this->logger->info("Handling command BIND... (not implemented)");
-            // TODO: Implement BIND logic if needed.
-            $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00" . pack('n', 0)); // Command not supported
-            $this->close();
-        } elseif ($commandCode === 0x03) {
-            $this->logger->info("Handling command UDP ASSOCIATE... (not implemented)");
-            // TODO: Implement UDP associate logic if needed.
-            $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00" . pack('n', 0)); // Command not supported
-            $this->close();
-        } else {
-            $this->logger->error("Unknown SOCKS5 command code: $commandCode");
-            $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00" . pack('n', 0)); // Command not supported
-            $this->close();
+        switch ($cmd) {
+            case 0x01:
+                $this->logger->info("Handling CONNECT command for client $this->fd");
+                $this->handleConnectCommandPacket($data);
+                break;
+            case 0x02:
+                $this->logger->info("Handling BIND command (not implemented) for client $this->fd");
+                $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00\x00\x00");
+                $this->close();
+                break;
+            case 0x03:
+                $this->logger->info("Handling UDP ASSOCIATE command (not implemented) for client $this->fd");
+                $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00\x00\x00");
+                $this->close();
+                break;
+            default:
+                $this->logger->error("Unknown SOCKS5 command $cmd for client $this->fd");
+                $this->sendToClient("\x05\x07\x00\x01\x00\x00\x00\x00\x00\x00");
+                $this->close();
         }
     }
 
     /**
-     * Step 1: Handle SOCKS5 handshake (version/method selection)
-     * Client Packet Format:
-     * [0]: SOCKS VERSION (0x05)
-     * [1]: Number of auth methods (n)
-     * [2]: Auth methods
+     * Handle SOCKS5 handshake (method selection)
      * @throws InvalidPacketLengthException
      */
     private function handleHandshakePacket(string $data): void
     {
         $this->handshakeStatus = HandshakeStatus::RUNNING;
-        $this->logger->info("Handling SOCKS5 handshake...");
+        $this->logger->info("Handling SOCKS5 handshake for client $this->fd");
 
         $this->socksVersion = SocksVersion::VERSION_5;
         $methodCount = ord($data[1]);
-
-        if (strlen($data) < 2 + $methodCount) {
-            $this->logger->error("Invalid handshake packet length for client $this->fd");
-            throw new InvalidPacketLengthException();
+        $totalLen = strlen($data);
+        if ($totalLen < 2 + $methodCount) {
+            throw new InvalidPacketLengthException("Invalid handshake packet length");
         }
 
         $methods = substr($data, 2, $methodCount);
-        $this->supportAuthMethods = [];
 
+        $this->supportAuthMethods = [];
         for ($i = 0; $i < $methodCount; $i++) {
             $method = ord($methods[$i]);
-            switch ($method) {
-                case AuthMethod::NOT_AUTH:
-                    $this->logger->info("Client $this->fd supports NO_AUTH");
-                    $this->supportAuthMethods[] = AuthMethod::NOT_AUTH;
-                    break;
-                case AuthMethod::USER_PASS_AUTH:
-                    $this->logger->info("Client $this->fd supports USER_PASS_AUTH");
-                    $this->supportAuthMethods[] = AuthMethod::USER_PASS_AUTH;
-                    break;
-                case AuthMethod::GSS_API_AUTH:
-                    $this->logger->info("Client $this->fd supports GSS_API_AUTH (unsupported by server)");
-                    // We do not support GSS, so we won't select it.
-                    break;
-                default:
-                    $this->logger->warning("Client $this->fd sent unsupported auth method: $method");
+            if ($method === AuthMethod::NOT_AUTH) {
+                $this->supportAuthMethods[] = AuthMethod::NOT_AUTH;
+            } elseif ($method === AuthMethod::USER_PASS_AUTH) {
+                $this->supportAuthMethods[] = AuthMethod::USER_PASS_AUTH;
             }
+            // GSS/others are unsupported; ignore for performance.
         }
 
-        // Choose an auth method
         $chosenMethod = $this->selectAuthMethod();
         if ($chosenMethod === AuthMethod::NO_ACCEPTABLE_AUTH) {
-            $this->logger->error("No acceptable authentication methods for client $this->fd");
+            $this->logger->error("No acceptable auth methods for client $this->fd");
             $this->sendToClient("\x05\xFF");
             $this->close();
             return;
         }
 
         if ($chosenMethod === AuthMethod::NOT_AUTH) {
-            // No authentication required
             $this->sendToClient("\x05\x00");
             $this->handshakeStatus = HandshakeStatus::FINISHED;
-            $this->logger->success("Handshake finished with NO_AUTH for client $this->fd");
-        } elseif ($chosenMethod === AuthMethod::USER_PASS_AUTH) {
-            // User/pass authentication required
+            $this->logger->success("No auth needed; handshake finished for client $this->fd");
+        } else {
+            // USER_PASS_AUTH
             $this->authNeeded = true;
             $this->sendToClient("\x05\x02");
-            $this->logger->info("Sent user-pass auth request to client $this->fd. Waiting for auth credentials...");
-            // Handshake still running, will be completed after auth success
+            $this->logger->info("User/pass auth requested from client $this->fd");
         }
     }
 
     /**
-     * Select the best auth method based on what the client supports
+     * Select auth method based on client support.
      */
     private function selectAuthMethod(): int
     {
-        // Prefer no auth if available
-        if (in_array(AuthMethod::NOT_AUTH, $this->supportAuthMethods, true)) {
-            return AuthMethod::NOT_AUTH;
-        }
-
-        // Otherwise use user/pass if available
-        if (in_array(AuthMethod::USER_PASS_AUTH, $this->supportAuthMethods, true)) {
-            return AuthMethod::USER_PASS_AUTH;
-        }
-
-        // No acceptable auth
-        return AuthMethod::NO_ACCEPTABLE_AUTH;
+        return in_array(AuthMethod::NOT_AUTH, $this->supportAuthMethods, true)
+            ? AuthMethod::NOT_AUTH
+            : (in_array(AuthMethod::USER_PASS_AUTH, $this->supportAuthMethods, true)
+                ? AuthMethod::USER_PASS_AUTH
+                : AuthMethod::NO_ACCEPTABLE_AUTH);
     }
 
     /**
-     * Handle user/password authentication packet
-     * Client Packet Format:
-     * [0]: Auth version (0x01)
-     * [1]: Username length (uLen)
-     * [2..uLen+1]: Username
-     * [uLen+2]: Password length (pLen)
-     * [uLen+3..uLen+3+pLen-1]: Password
+     * Handle user/password authentication packet.
      */
     private function handleAuthPacket(string $data): void
     {
-        $this->logger->info("Handling user/pass authentication for client $this->fd");
-
-        if (strlen($data) < 2) {
-            $this->logger->error("Auth packet too short for client $this->fd");
+        $len = strlen($data);
+        if ($len < 2) {
             $this->sendToClient("\x01\x01");
             $this->close();
             return;
         }
 
-        $authVersion = ord($data[0]);
-        if ($authVersion !== 0x01) {
-            $this->logger->error("Unsupported auth version $authVersion for client $this->fd");
-            $this->sendToClient("\x01\x01"); // Auth failure
+        if (ord($data[0]) !== 0x01) {
+            $this->sendToClient("\x01\x01");
             $this->close();
             return;
         }
 
         $usernameLen = ord($data[1]);
-        $minLength = 2 + $usernameLen + 1;
-        if (strlen($data) < $minLength) {
-            $this->logger->error("Auth packet too short to contain username for client $this->fd");
+        $pos = 2 + $usernameLen;
+        if ($len < $pos + 1) {
             $this->sendToClient("\x01\x01");
             $this->close();
             return;
         }
 
         $username = substr($data, 2, $usernameLen);
-        $posAfterUsername = 2 + $usernameLen;
-        if (strlen($data) < $posAfterUsername + 1) {
-            $this->logger->error("Auth packet too short to contain password length for client $this->fd");
+        $passwordLen = ord($data[$pos]);
+        $pos += 1;
+        if ($len < $pos + $passwordLen) {
             $this->sendToClient("\x01\x01");
             $this->close();
             return;
         }
 
-        $passwordLen = ord($data[$posAfterUsername]);
-        if (strlen($data) < $posAfterUsername + 1 + $passwordLen) {
-            $this->logger->error("Auth packet too short to contain full password for client $this->fd");
-            $this->sendToClient("\x01\x01");
-            $this->close();
-            return;
-        }
-
-        $password = substr($data, $posAfterUsername + 1, $passwordLen);
-        $this->logger->info("Client $this->fd attempting auth with username: $username");
-
-        // Replace with real authentication logic
-        $isAuthSuccessful = $this->authenticate($username, $password);
-
-        if ($isAuthSuccessful) {
-            $this->logger->success("Authentication successful for client $this->fd");
-            $this->sendToClient("\x01\x00"); // Auth success
+        $password = substr($data, $pos, $passwordLen);
+        if ($this->authenticate($username, $password)) {
+            $this->sendToClient("\x01\x00");
             $this->handshakeStatus = HandshakeStatus::FINISHED;
+            $this->logger->success("Authenticated client $this->fd");
         } else {
-            $this->logger->error("Authentication failed for client $this->fd");
-            $this->sendToClient("\x01\x01"); // Auth failure
+            $this->sendToClient("\x01\x01");
             $this->close();
         }
     }
 
     private function authenticate(string $username, string $password): bool
     {
-        // Example hardcoded credentials; replace with a proper auth mechanism.
-        $validUsername = "user";
-        $validPassword = "pass";
+        $this->logger->info("Authenticating client auth info .... ");
+        $serverUsername = BaseServer::$socksUsername;
+        $serverPassword = BaseServer::$socksPassword;
+        if (empty($serverUsername) && empty($serverPassword)) {
+            $this->logger->success("Client authenticated . server auth info is empty");
+            return true;
+        }
 
-        return $username === $validUsername && $password === $validPassword;
+        // Hardcoded for demonstration; replace with real validation.
+        return $username === BaseServer::$socksUsername && $password === BaseServer::$socksPassword;
     }
 
     /**
-     * Handle CONNECT command: parse address and port and connect to target.
+     * Handle CONNECT command: parse address and port, connect to target.
      */
     private function handleConnectCommandPacket(string $data): void
     {
-        $this->logger->info("Handling CONNECT command from client $this->fd...");
-
         $addressType = ord($data[3]);
-
-        if ($addressType === 0x01) {
-            // IPv4
-            if (strlen($data) < 10) {
-                $this->logger->error("Invalid IPv4 request from client $this->fd");
-                $this->sendToClient("\x05\x04\x00\x01\x00\x00\x00\x00".pack('n',0));
+        $length = strlen($data);
+        switch ($addressType) {
+            case 0x01: // IPv4
+                if ($length < 10) {
+                    $this->sendToClient("\x05\x04\x00\x01\x00\x00\x00\x00\x00\x00");
+                    $this->close();
+                    return;
+                }
+                $host = inet_ntop(substr($data, 4, 4));
+                $port = unpack('n', substr($data, 8, 2))[1];
+                break;
+            case 0x03: // Domain
+                if ($length < 5) {
+                    $this->sendToClient("\x05\x04\x00\x01\x00\x00\x00\x00\x00\x00");
+                    $this->close();
+                    return;
+                }
+                $dLength = ord($data[4]);
+                if ($length < 5 + $dLength + 2) {
+                    $this->sendToClient("\x05\x04\x00\x01\x00\x00\x00\x00\x00\x00");
+                    $this->close();
+                    return;
+                }
+                $host = substr($data, 5, $dLength);
+                $port = unpack('n', substr($data, 5 + $dLength, 2))[1];
+                break;
+            case 0x04: // IPv6 not supported here
+                $this->sendToClient("\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00");
                 $this->close();
                 return;
-            }
-            $host = inet_ntop(substr($data, 4, 4));
-            $port = unpack('n', substr($data, 8, 2))[1];
-        } elseif ($addressType === 0x03) {
-            // Domain name
-            $domainLen = ord($data[4]);
-            if (strlen($data) < 5 + $domainLen + 2) {
-                $this->logger->error("Invalid domain request from client $this->fd");
-                $this->sendToClient("\x05\x04\x00\x01\x00\x00\x00\x00".pack('n',0));
+            default:
+                $this->sendToClient("\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00");
                 $this->close();
                 return;
-            }
-            $host = substr($data, 5, $domainLen);
-            $port = unpack('n', substr($data, 5 + $domainLen, 2))[1];
-        } elseif ($addressType === 0x04) {
-            // IPv6 - Not implemented
-            $this->logger->error("IPv6 not supported for client $this->fd");
-            $this->sendToClient("\x05\x08\x00\x01\x00\x00\x00\x00".pack('n',0));
-            $this->close();
-            return;
-        } else {
-            $this->logger->error("Unsupported address type from client $this->fd");
-            $this->sendToClient("\x05\x08\x00\x01\x00\x00\x00\x00".pack('n',0));
-            $this->close();
-            return;
         }
 
-        $this->logger->info("Client $this->fd requests connection to $host:$port");
+        $this->logger->info("Client $this->fd connecting to $host:$port");
         $this->createTargetSocketCoroutine($host, $port);
     }
 
     /**
-     * Create target socket and connect to the destination host.
+     * Create a target socket and connect asynchronously.
      */
     public function createTargetSocketCoroutine(string $host, int $port): void
     {
         $this->targetSocketReceiverCid = go(function () use ($host, $port) {
-            $this->targetSocket = new Socket(AF_INET, SOCK_STREAM, 0);
-            if (!$this->targetSocket->connect($host, $port, 3)) {
-                $this->logger->error("Failed to connect to $host:$port for client $this->fd.");
-                $this->sendToClient("\x05\x05\x00\x01\x00\x00\x00\x00" . pack('n', 0)); // Connection refused
+            $sock = new Socket(AF_INET, SOCK_STREAM, 0);
+            if (!$sock->connect($host, $port, 3)) {
+                $this->logger->error("Connection to $host:$port failed for client $this->fd");
+                $this->sendToClient("\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00");
                 $this->close();
                 return;
             }
 
+            $this->targetSocket = $sock;
             $this->isConnected = true;
-            $this->logger->success("Connected to $host:$port for client $this->fd.");
-            // Send success response
-            $this->sendToClient("\x05\x00\x00\x01\x00\x00\x00\x00" . pack('n', 0));
+            $this->logger->success("Connected to $host:$port for client $this->fd");
 
-            // Start reading from target
+            // Notify client of success
+            $this->sendToClient("\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00");
+
             go(function () {
                 while (true) {
                     $data = $this->targetSocket->recv();
                     if ($data === '' || $data === false) {
-                        $this->logger->warning("Target connection closed for client $this->fd.");
+                        $this->logger->warning("Target closed for client $this->fd");
                         $this->close();
                         break;
                     }
@@ -386,42 +353,29 @@ class SocksClient
         });
     }
 
-    /**
-     * Forward raw data to the target if connected.
-     */
-    public function handleClientDataRowPacket(string $data): void
-    {
-        if ($this->targetSocket && $this->isConnected) {
-            $this->targetSocket->send($data);
-            $this->logger->info("Forwarded data from client $this->fd to target.");
-        } else {
-            $this->logger->error("No target socket or not connected for client $this->fd. Dropping data.");
-        }
-    }
-
     private function sendToClient(string $data): void
     {
         if ($this->server->exist($this->fd)) {
             $this->server->send($this->fd, $data);
-            $this->logger->info("Response sent to client $this->fd");
         } else {
-            $this->logger->warning("Failed to send data to client $this->fd: client not found");
+            $this->logger->warning("Client $this->fd not found during send");
         }
     }
 
     public function handleException(Throwable $exception): void
     {
-        $this->logger->error("Error handling client packet: {$exception->getMessage()}");
+        $msg = $exception->getMessage();
+        $this->logger->error("Exception for client $this->fd: $msg");
 
+        // Specialized handling
         if ($exception instanceof HandshakeErrorException) {
-            $this->logger->error("Unsupported SOCKS version from client $this->fd");
+            $this->logger->error("Handshake error for client $this->fd");
         } elseif ($exception instanceof InvalidPacketLengthException) {
-            $this->logger->error("Invalid packet length from client $this->fd");
+            $this->logger->error("Invalid packet length for client $this->fd");
         } elseif ($exception instanceof InvalidSocksVersionException) {
-            $this->logger->error("Invalid SOCKS version from client $this->fd");
+            $this->logger->error("Invalid SOCKS version for client $this->fd");
         } else {
-            $className = get_class($exception);
-            $this->logger->error("Unknown exception $className: {$exception->getMessage()}");
+            $this->logger->error("Unknown exception ".get_class($exception)." for client $this->fd: $msg");
         }
 
         $this->close();
@@ -430,24 +384,23 @@ class SocksClient
     public function close(): void
     {
         if ($this->isClosing) {
-            $this->logger->info("Client $this->fd is already closing ...");
             return;
         }
 
         $this->isClosing = true;
         $this->logger->warning("Closing client $this->fd");
-        Coroutine::sleep(0.1); // Slight delay to ensure logs flush
 
-        // Close target socket if exists
-        if ($this->targetSocket !== null && $this->isConnected) {
+        // Close target socket if open
+        if ($this->targetSocket && $this->isConnected) {
             $this->targetSocket->close();
         }
 
-        // Close client connection
+        // Close client connection if still exists
         if ($this->server->exist($this->fd)) {
             $this->server->close($this->fd);
         }
 
+        // Cancel target receiver coroutine if needed
         if ($this->targetSocketReceiverCid) {
             Coroutine::cancel($this->targetSocketReceiverCid);
             $this->targetSocketReceiverCid = null;
