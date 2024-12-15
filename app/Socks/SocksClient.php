@@ -108,17 +108,17 @@ class SocksClient
             return;
         }
 
-        /** Command is CONNECT   */
-        if ($commandCode === 0x01) {
+        /** Command is BIND   */
+        if ($commandCode === 0x02) {
             $this->logger->info("Handling command bind ... ");
             // todo : Handling command bind
             return;
         }
 
+        /** Command for UDP associate */
         if ($commandCode === 0x03){
             $this->logger->info("Handling command UDP associate ... ");
             // todo : Handling command UDP Associate
-
         }
 
 
@@ -245,6 +245,13 @@ class SocksClient
         }
     }
 
+    /**
+     * Connect command
+     * Client Packet Format
+     * 1 - Socks version number (always is 0x05) [1 Bytes]
+     * 2 - Command code (CONNECT is 0x)
+     *
+     */
     private function handleConnectCommandPacket(string $data): void
     {
         $this->logger->info("Handling CONNECT command from client ...");
