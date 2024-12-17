@@ -339,19 +339,20 @@ class Socks5Client
             // Notify client of success
             $this->sendToClient("\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00");
 
-            go(function () {
-                while (true) {
-                    $data = $this->targetSocket->recv();
-                    if ($data === '' || $data === false) {
-                        $this->logger->warning("Target closed for client $this->fd");
-                        $this->close();
-                        break;
-                    }
-                    $this->sendToClient($data);
-                    $this->logger->info("Data forwarder from target to client server successfully");
-                    BaseServer::$socksServer::$responseCount++;
+            while (true) {
+                $data = $this->targetSocket->recv();
+                if ($data === '' || $data === false) {
+                    $this->logger->warning("Target closed for client $this->fd");
+                    $this->close();
+                    break;
                 }
-            });
+                $this->sendToClient($data);
+                $this->logger->info("Data forwarder from target to client server successfully");
+            }
+
+//            go(function () {
+//
+//            });
         });
     }
 

@@ -38,7 +38,7 @@ class BaseServer
             BaseServer::$socksPassword = $password;
             new self();
         } catch (Throwable $exception) {
-            Logger::echo("Startup error : {$exception->getMessage()}} \n", Logger::ERROR);
+            Logger::echo("Startup error : $exception", Logger::ERROR);
         }
     }
 

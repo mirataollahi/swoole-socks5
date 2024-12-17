@@ -16,11 +16,6 @@ class SocksServer
     public array $clients = [];
     public BaseServer $appContext;
 
-    /** Socks5 Proxy server metrics */
-    public static int $connectedClientsCount = 0;
-    public static int $closedClientsCount = 0;
-    public static int $requestCount = 0;
-    public static int $responseCount = 0;
 
     public function __construct(BaseServer $appContext)
     {
@@ -65,7 +60,6 @@ class SocksServer
 
     public function onConnect(Server $server, int $fd , int $reactorId): void
     {
-        self::$connectedClientsCount++;
         $this->logger->info("TCP Client #$fd connected at reactor id $reactorId and worker {$server->getWorkerId()}");
         if (!array_key_exists($fd,$this->clients)){
             $this->clients[$fd] = new Socks5Client($this->server , $fd,$reactorId,$server->getWorkerId(),$server->getClientInfo($fd));
@@ -74,7 +68,6 @@ class SocksServer
 
     public function onReceive(Server $server, int $fd , int $reactorId,string $data): void
     {
-        self::$requestCount++;
         $this->logger->info("📥 New TCP Packet receive from fd $fd and reactor_id $reactorId and wid {$server->getWorkerId()}");
         // Check client still connected
         if (array_key_exists($fd,$this->clients)){
@@ -86,7 +79,6 @@ class SocksServer
 
     public function onClose(Server $server, int $fd): void
     {
-        self::$closedClientsCount++;
         $this->logger->info("Client #$fd closed in worker {$server->getWorkerId()}");
         if (array_key_exists($fd , $this->clients)){
             $this->clients[$fd]?->close();
