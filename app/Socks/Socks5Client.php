@@ -16,7 +16,7 @@ use Swoole\Coroutine\Socket;
 use Swoole\Server;
 use Throwable;
 
-class SocksClient
+class Socks5Client
 {
     /** @var Logger */
     public Logger $logger;

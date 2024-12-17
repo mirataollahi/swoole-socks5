@@ -26,17 +26,6 @@ class Logger
         'WHITE'   => '37',
     ];
 
-    const BRIGHT_COLORS = [
-        'brightRed'     => "\033[1;31m",
-        'brightGreen'   => "\033[1;32m",
-        'brightYellow'  => "\033[1;33m",
-        'brightBlue'    => "\033[1;34m",
-        'brightMagenta' => "\033[1;35m",
-        'brightCyan'    => "\033[1;36m",
-        'brightWhite'   => "\033[1;37m",
-    ];
-
-
     public static int $logLevel = self::INFO | self::SUCCESS | self::WARNING | self::ERROR;
 
     public bool $concurrentPrintInCli = false;

@@ -14,11 +14,17 @@ class SocksServer
     public int $port;
     public Logger $logger;
     public array $clients = [];
-    public ?string $authUsername = null;
-    public ?string $authPassword = null;
+    public BaseServer $appContext;
 
-    public function __construct()
+    /** Socks5 Proxy server metrics */
+    public static int $connectedClientsCount = 0;
+    public static int $closedClientsCount = 0;
+    public static int $requestCount = 0;
+    public static int $responseCount = 0;
+
+    public function __construct(BaseServer $appContext)
     {
+        $this->appContext = $appContext;
         $this->logger = new Logger('SOCKS_SERVER');
         $this->initServer();
         $this->logger->info("Starting socks server at $this->host:$this->port");
@@ -32,7 +38,7 @@ class SocksServer
         $this->server = new Server($this->host, $this->port);
 
         $this->server->set([
-            'worker_num' => 1,
+            'worker_num' => 4,
             'hook_flags' => SWOOLE_HOOK_ALL,
             'enable_coroutine' => true,
             'tcp_fastopen' => true,
@@ -59,18 +65,20 @@ class SocksServer
 
     public function onConnect(Server $server, int $fd , int $reactorId): void
     {
+        self::$connectedClientsCount++;
         $this->logger->info("TCP Client #$fd connected at reactor id $reactorId and worker {$server->getWorkerId()}");
         if (!array_key_exists($fd,$this->clients)){
-            $this->clients[$fd] = new SocksClient($this->server , $fd,$reactorId,$server->getWorkerId(),$server->getClientInfo($fd));
+            $this->clients[$fd] = new Socks5Client($this->server , $fd,$reactorId,$server->getWorkerId(),$server->getClientInfo($fd));
         }
     }
 
     public function onReceive(Server $server, int $fd , int $reactorId,string $data): void
     {
+        self::$requestCount++;
         $this->logger->info("📥 New TCP Packet receive from fd $fd and reactor_id $reactorId and wid {$server->getWorkerId()}");
         // Check client still connected
         if (array_key_exists($fd,$this->clients)){
-            /** @var SocksClient $client */
+            /** @var Socks5Client $client */
             $client = $this->clients[$fd];
             $client->onReceive($data);
         }
@@ -78,6 +86,7 @@ class SocksServer
 
     public function onClose(Server $server, int $fd): void
     {
+        self::$closedClientsCount++;
         $this->logger->info("Client #$fd closed in worker {$server->getWorkerId()}");
         if (array_key_exists($fd , $this->clients)){
             $this->clients[$fd]?->close();
@@ -88,6 +97,7 @@ class SocksServer
     public function onWorkerStart(Server $server, int $workerId): void
     {
         $this->logger->info("Server worker #$workerId started with pid {$server->getWorkerPid()}");
+        $this->appContext->initWorkerLayer($server->worker_id);
     }
 
     public function onWorkerStop(Server $server, int $workerId): void

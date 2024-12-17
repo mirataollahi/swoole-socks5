@@ -4,6 +4,7 @@ namespace App;
 
 use App\Socks\SocksServer;
 use App\Tools\Logger;
+use App\Tools\MetricManager;
 use Throwable;
 
 class BaseServer
@@ -14,12 +15,14 @@ class BaseServer
     public static string $socksPort;
     public static ?string $socksUsername = null;
     public static ?string $socksPassword = null;
+    public static MetricManager $metricManager;
 
     public function __construct()
     {
         $this->logger = new Logger('BASE_SERVER');
         $this->logger->info("Starting application .... ");
-        $this->socksServer = new SocksServer();
+        self::$metricManager = new MetricManager();
+        $this->socksServer = new SocksServer($this);
         $this->socksServer->server->start();
     }
 
@@ -34,5 +37,13 @@ class BaseServer
         } catch (Throwable $exception) {
             Logger::echo("Startup error : {$exception->getMessage()}} \n", Logger::ERROR);
         }
+    }
+
+    /**
+     * The method run in worker layer and run after worker started
+     */
+    public function initWorkerLayer(int $workerId): void
+    {
+        self::$metricManager->initialize($workerId);
     }
 }
