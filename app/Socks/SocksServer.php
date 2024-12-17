@@ -97,7 +97,7 @@ class SocksServer
     public function onWorkerStart(Server $server, int $workerId): void
     {
         $this->logger->info("Server worker #$workerId started with pid {$server->getWorkerPid()}");
-        $this->appContext->initWorkerLayer($server->worker_id);
+        $this->appContext->initWorkerLayer($workerId);
     }
 
     public function onWorkerStop(Server $server, int $workerId): void

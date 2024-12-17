@@ -348,6 +348,8 @@ class Socks5Client
                         break;
                     }
                     $this->sendToClient($data);
+                    $this->logger->info("Data forwarder from target to client server successfully");
+                    BaseServer::$socksServer::$responseCount++;
                 }
             });
         });

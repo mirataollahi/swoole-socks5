@@ -2,11 +2,13 @@
 
 use App\BaseServer;
 
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/composer/vendor/autoload.php';
 
 Swoole\Coroutine::set(['hook_flags' => SWOOLE_HOOK_ALL]);
-
 date_default_timezone_set('Asia/Tehran');
+
+
+
 
 /**
  * Sock5 Proxy server Network

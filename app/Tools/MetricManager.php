@@ -24,26 +24,16 @@ class MetricManager
 
     private int $workerId;
     private static ?Table $metricsTable = null;
-    private float $delaySeconds = 3.0;
+    private int $delaySeconds = 3;
     private Logger $logger;
+    private int $workerCount = 1;
 
-    public function __construct()
+    public function __construct(int $workerCount = 1)
     {
         $this->logger = new Logger('METRIC_MANAGER');
-        if (self::$metricsTable === null) {
-            $this->initializeMetricsTable();
-        }
-
-        // Ensure metrics for this worker are initialized
-        self::$metricsTable->set((string)$this->workerId, array_fill_keys(self::METRIC_KEYS, 0));
-    }
-
-    /**
-     * Initializes the shared Swoole\Table for storing metrics across workers.
-     */
-    private function initializeMetricsTable(): void
-    {
-        self::$metricsTable = new Table(1024); // Adjust size based on the number of workers
+        $this->workerCount = $workerCount;
+        // Create persists table to store metrics
+        self::$metricsTable = new Table(1024 * $this->workerCount); // Adjust size based on the number of workers
         self::$metricsTable->column(self::COROUTINE_NUM, Table::TYPE_INT);
         self::$metricsTable->column(self::SOCKS5_REQUEST_COUNT, Table::TYPE_INT);
         self::$metricsTable->column(self::SOCKS5_RESPONSE_COUNT, Table::TYPE_INT);
@@ -51,6 +41,7 @@ class MetricManager
         self::$metricsTable->column(self::CPU_USAGE, Table::TYPE_FLOAT);
         self::$metricsTable->create();
     }
+
 
     /**
      * The method run in worker layer and after worker started
@@ -60,6 +51,11 @@ class MetricManager
     {
         $this->logger->info("Initializing Metrics manager for worker $workerId");
         $this->workerId = $workerId;
+
+        // Clean all old metrics values with zero
+        self::$metricsTable->set((string)$this->workerId, array_fill_keys(self::METRIC_KEYS, 0));
+
+
         Timer::tick($this->delaySeconds * 1000, function () {
             $this->updateMetrics();
         });

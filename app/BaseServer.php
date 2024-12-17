@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Master\MasterServer;
 use App\Socks\SocksServer;
 use App\Tools\Logger;
 use App\Tools\MetricManager;
@@ -10,23 +11,25 @@ use Throwable;
 class BaseServer
 {
     public Logger $logger;
-    public SocksServer $socksServer;
+    public static SocksServer $socksServer;
     public static string $socksHost;
-    public static string $socksPort;
+    public static int $socksPort;
     public static ?string $socksUsername = null;
     public static ?string $socksPassword = null;
+    public static  int $workerCount = 4;
     public static MetricManager $metricManager;
-
+    public static MasterServer $masterServer;
     public function __construct()
     {
         $this->logger = new Logger('BASE_SERVER');
         $this->logger->info("Starting application .... ");
-        self::$metricManager = new MetricManager();
-        $this->socksServer = new SocksServer($this);
-        $this->socksServer->server->start();
+        self::$metricManager = new MetricManager(self::$workerCount);
+        self::$socksServer = new SocksServer($this);
+        self::$masterServer= new MasterServer();
+        self::$socksServer->server->start();
     }
 
-    public static function run(string $host,string $port,?string $username , ?string $password): void
+    public static function run(string $host,int $port,?string $username , ?string $password): void
     {
         try {
             BaseServer::$socksHost = $host;

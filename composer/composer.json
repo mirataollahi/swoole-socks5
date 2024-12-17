@@ -3,7 +3,7 @@
     "description": "Socks5 proxy server with php swoole",
     "autoload": {
         "psr-4": {
-            "App\\": "app/"
+            "App\\": "./../app/"
         }
     },
     "require": {
