@@ -15,8 +15,6 @@ class MetricManager
         self::RESPONSE_COUNT,
         self::RAM_USAGE,
         self::CPU_USAGE,
-        self::RECEIVE_DATE_SIZE,
-        self::SENT_DATE_SIZE,
         self::ACCEPT_CLIENT_COUNT,
         self::ABORT_CLIENT_COUNT,
         self::CLOSE_CLIENT_COUNT,
@@ -29,8 +27,6 @@ class MetricManager
     public const RESPONSE_COUNT = 'response_count';
     public const RAM_USAGE = 'ram_usage';
     public const CPU_USAGE = 'cpu_usage';
-    public const RECEIVE_DATE_SIZE = 'receive_data_size';
-    public const SENT_DATE_SIZE = 'sent_data_size';
     public const ACCEPT_CLIENT_COUNT = 'accept_client_count';
     public const ABORT_CLIENT_COUNT = 'abort_client_count';
     public const CLOSE_CLIENT_COUNT = 'close_client_count';
@@ -85,8 +81,6 @@ class MetricManager
             self::CONNECTION_COUNT => $stats['connection_num'] ?? 0, // 1-minute CPU load average
             self::REQUEST_COUNT => $stats['worker_request_count'] ?? 0,
             self::RESPONSE_COUNT => $stats['worker_response_count'] ?? 0,
-            self::RECEIVE_DATE_SIZE => $stats['total_recv_bytes'] ?? 0,
-            self::SENT_DATE_SIZE => $stats['total_send_bytes'] ?? 0,
             self::ACCEPT_CLIENT_COUNT => $stats['accept_count'] ?? 0,
             self::ABORT_CLIENT_COUNT => $stats['abort_count'] ?? 0,
             self::CLOSE_CLIENT_COUNT => $stats['close_count'] ?? 0,

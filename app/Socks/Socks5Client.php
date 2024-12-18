@@ -111,9 +111,9 @@ class Socks5Client
             }
 
             // Target socket is established
-            if ($this->isConnected) {
+            if ($this->isConnected && !$this->targetSocket->isClosed()) {
                 // Forward client data to the target
-                $this->targetSocket->send($data);
+                $this->targetSocket->send($data,1.5);
             } else {
                 $this->logger->error("Target socket not connected for client $this->fd. Dropping data.");
             }
@@ -391,22 +391,31 @@ class Socks5Client
         }
 
         $this->isClosing = true;
-        $this->logger->warning("Closing client $this->fd");
+        $this->logger->warning("Closing socks5 client $this->fd");
 
         // Close target socket if open
         if ($this->targetSocket && $this->isConnected) {
             $this->targetSocket->close();
+            $this->logger->success("Clean up client $this->fd : Target socket closed successfully");
         }
 
         // Close client connection if still exists
         if ($this->server->exist($this->fd)) {
-            $this->server->close($this->fd);
+            $this->server->close($this->fd,true);
+            $this->logger->success("Clean up client $this->fd : Client fore closed from server");
         }
 
         // Cancel target receiver coroutine if needed
         if ($this->targetSocketReceiverCid) {
-            Coroutine::cancel($this->targetSocketReceiverCid);
-            $this->targetSocketReceiverCid = null;
+            if (!Coroutine::exists($this->targetSocketReceiverCid)){
+                $this->targetSocketReceiverCid = null;
+                $this->logger->success("Clean up client $this->fd : Target socket data already closed");
+            }
+            else {
+                Coroutine::cancel($this->targetSocketReceiverCid);
+                $this->targetSocketReceiverCid = null;
+                $this->logger->success("Clean up client $this->fd : Target socket data receiver coroutine closed");
+            }
         }
     }
 }

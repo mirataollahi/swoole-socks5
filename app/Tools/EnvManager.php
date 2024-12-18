@@ -44,6 +44,10 @@ class EnvManager
             }
         }
 
+        if (is_numeric($env)){
+            $env = intval($env);
+        }
+
         // Return the value as a string, even if it is null or empty
         return $env;
     }

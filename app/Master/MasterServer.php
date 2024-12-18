@@ -51,6 +51,10 @@ class MasterServer
         $metrics = [];
         $metrics['total'] = [];
 
+        $serverStats = BaseServer::$socksServer->server->stats();
+        $metrics['total']['download_size'] = $serverStats['total_recv_bytes'];
+        $metrics['total']['upload_size'] = $serverStats['total_send_bytes'];
+
 
         foreach (BaseServer::$metricManager::METRIC_KEYS as $metricKey) {
             for ($workerId = 0; $workerId < BaseServer::$workerCount; $workerId++) {
@@ -93,8 +97,10 @@ class MasterServer
         $response->end("Page not found (404)");
     }
 
-    public function toHumanReadableSize(float|int $bytes, int $precision = 2): string
+    public function toHumanReadableSize(float|int|null $bytes, int $precision = 2): string
     {
+        if (empty($bytes))
+            return 0;
         $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
         $index = 0;
 
