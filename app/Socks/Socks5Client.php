@@ -18,25 +18,15 @@ use Throwable;
 
 class Socks5Client
 {
-    /** @var Logger */
     public Logger $logger;
-    /** @var int */
     public int $fd;
-    /** @var int */
     public int $workerId;
-    /** @var int */
     public int $reactorId;
-    /** @var array */
     public array $userInfo;
-    /** @var Socket|null */
     private ?Socket $targetSocket = null;
-    /** @var bool */
     private bool $isConnected = false;
-    /** @var bool */
     private bool $isClosing = false;
-    /** @var Server */
     public Server $server;
-    /** @var int|null */
     public ?int $targetSocketReceiverCid = null;
 
     /** Socks5 Protocol Info */
