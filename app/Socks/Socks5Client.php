@@ -29,14 +29,9 @@ class Socks5Client
     public Server $server;
     public ?int $targetSocketReceiverCid = null;
 
-    /** Socks5 Protocol Info */
-    /** @var SocksVersion|null */
     public ?SocksVersion $socksVersion = null;
-    /** @var array */
     public array $supportAuthMethods = [];
-    /** @var HandshakeStatus */
     public HandshakeStatus $handshakeStatus;
-    /** @var bool */
     private bool $authNeeded = false;
 
     public function __construct(Server $server, int $fd, int $reactorId, int $workerId, array $userInfo = [])
