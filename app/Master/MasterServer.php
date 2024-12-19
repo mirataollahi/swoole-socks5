@@ -7,6 +7,7 @@
 namespace App\Master;
 
 use App\BaseServer;
+use App\Metrics\Metric;
 use App\Tools\Logger;
 use RuntimeException;
 use Swoole\Http\Request;
@@ -48,45 +49,49 @@ class MasterServer
     public function handleGetMetricsRequest(Request $request, Response $response): void
     {
         $this->logger->info("Handling http web panel get metrics request ...");
-        $metrics = [];
-        $metrics['total'] = [];
 
+        $metrics = [
+            'total' => []
+        ];
+
+        // Fetch global stats once
         $serverStats = BaseServer::$socksServer->server->stats();
-        $metrics['total']['download_size'] = $serverStats['total_recv_bytes'];
-        $metrics['total']['upload_size'] = $serverStats['total_send_bytes'];
+        $metrics['total']['download_size'] = $serverStats['total_recv_bytes'] ?? 0;
+        $metrics['total']['upload_size'] = $serverStats['total_send_bytes'] ?? 0;
 
+        $workerCount = BaseServer::$workerCount;
+        $metricKeys = Metric::cases();
 
-        foreach (BaseServer::$metricManager::METRIC_KEYS as $metricKey) {
-            for ($workerId = 0; $workerId < BaseServer::$workerCount; $workerId++) {
-                $metricValue = BaseServer::$metricManager->get($metricKey);
-                $metrics["worker_$workerId"][$metricKey] = $metricValue;
-                if (array_key_exists($metricKey, $metrics['total'])) {
-                    $metrics['total'][$metricKey] += $metricValue;
-                } else {
-                    $metrics['total'][$metricKey] = $metricValue;
-                }
+        foreach ($metricKeys as $metricCase) {
+            // Ensure total for this metric is initialized to zero
+            if (!isset($metrics['total'][$metricCase->value])) {
+                $metrics['total'][$metricCase->value] = 0;
+            }
+
+            for ($workerId = 0; $workerId < $workerCount; $workerId++) {
+                // Retrieve the metric for the specific worker
+                $metricValue = BaseServer::$metricManager->get($metricCase->value, $workerId) ?? 0;
+
+                // Store the worker's metric
+                $metrics["worker_$workerId"][$metricCase->value] = $metricValue;
+
+                // Accumulate the total
+                $metrics['total'][$metricCase->value] += $metricValue;
             }
         }
 
+        // Perform any normalization or post-processing on the totals
         $metrics = $this->normalizeTotalMetrics($metrics);
 
-        $response->setHeader('Content-Type', 'application-json');
-        $jsonMetrics = json_encode($metrics);
-        $response->end($jsonMetrics);
+        // Set the response headers and body
+        $response->setHeader('Content-Type', 'application/json');
+        $response->end(json_encode($metrics));
     }
 
     public function normalizeTotalMetrics(array $metrics): array
     {
-        for ($workerId = 0; $workerId < BaseServer::$workerCount; $workerId++) {
-            $workerMetrics = $metrics["worker_$workerId"];
-            if (array_key_exists('receive_data_size', $workerMetrics)) {
-                $metrics["worker_$workerId"]['receive_data_size'] = $this->toHumanReadableSize($metrics["worker_$workerId"]['receive_data_size']);
-            }
-
-            if (array_key_exists('sent_data_size', $workerMetrics)) {
-                $metrics["worker_$workerId"]['sent_data_size'] = $this->toHumanReadableSize($metrics["worker_$workerId"]['sent_data_size']);
-            }
-        }
+        $metrics['total']['download_data_size'] = $this->toHumanReadableSize($metrics['total']['download_size']);
+        $metrics['total']['upload_data_size'] = $this->toHumanReadableSize($metrics['total']['upload_size']);
         return $metrics;
     }
 

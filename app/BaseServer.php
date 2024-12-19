@@ -3,10 +3,10 @@
 namespace App;
 
 use App\Master\MasterServer;
+use App\Metrics\MetricManager;
 use App\Socks\SocksServer;
 use App\Tools\EnvManager;
 use App\Tools\Logger;
-use App\Tools\MetricManager;
 use Throwable;
 
 class BaseServer
