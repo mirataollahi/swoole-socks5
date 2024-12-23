@@ -13,6 +13,11 @@ EnvManager::putEnv('SOCKS5_USERNAME', false);   // Username for authentication (
 EnvManager::putEnv('SOCKS5_PASSWORD', false);   // Password for authentication (if enabled)
 
 
+/**
+ * Running in debug mode show more logs
+ */
+EnvManager::putEnv('IS_DEBUG', false);
+
 
 
 /**

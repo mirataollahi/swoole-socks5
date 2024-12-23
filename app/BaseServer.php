@@ -25,9 +25,9 @@ class BaseServer
         $this->logger = new Logger('BASE_SERVER');
         $this->logger->info("Starting application .... ");
         self::$metricManager = new MetricManager(self::$workerCount);
+        self::$masterServer= new MasterServer($this);
         self::$socksServer = new SocksServer($this);
-        self::$masterServer= new MasterServer();
-        self::$socksServer->server->start();
+        self::$masterServer->server->start();
     }
 
     public static function run(): void

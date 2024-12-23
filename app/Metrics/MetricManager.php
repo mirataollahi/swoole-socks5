@@ -52,7 +52,7 @@ class MetricManager
      */
     private function updateMetrics(): void
     {
-        $stats = BaseServer::$socksServer->server->stats();
+        $stats = BaseServer::$masterServer->server->stats();
         $metrics = [
             Metric::COROUTINE_NUM->value       => $stats['coroutine_num'] ?? 0,
             Metric::RAM_USAGE->value           => (float)(memory_get_usage(true)),

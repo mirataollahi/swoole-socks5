@@ -50,7 +50,7 @@ class Socks5Client
     public function onReceive(string $data): void
     {
         if ($this->isClosing) {
-            $this->logger->error("Ignoring packet since client $this->fd is closing");
+            $this->logger->warning("Ignoring packet since client $this->fd is closing");
             return;
         }
 
@@ -311,7 +311,7 @@ class Socks5Client
         $this->targetSocketReceiverCid = go(function () use ($host, $port) {
             $sock = new Socket(AF_INET, SOCK_STREAM, 0);
             if (!$sock->connect($host, $port, 3)) {
-                $this->logger->error("Connection to $host:$port failed for client $this->fd");
+                $this->logger->warning("Connection to $host:$port failed for client $this->fd");
                 $this->sendToClient("\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00");
                 $this->close();
                 return;
@@ -334,10 +334,6 @@ class Socks5Client
                 $this->sendToClient($data);
                 $this->logger->info("Data forwarder from target to client server successfully");
             }
-
-//            go(function () {
-//
-//            });
         });
     }
 
@@ -376,30 +372,30 @@ class Socks5Client
         }
 
         $this->isClosing = true;
-        $this->logger->warning("Closing socks5 client $this->fd");
+        $this->logger->info("Closing socks5 client $this->fd");
 
         // Close target socket if open
         if ($this->targetSocket && $this->isConnected) {
             $this->targetSocket->close();
-            $this->logger->success("Clean up client $this->fd : Target socket closed successfully");
+            $this->logger->info("Clean up client $this->fd : Target socket closed successfully");
         }
 
         // Close client connection if still exists
         if ($this->server->exist($this->fd)) {
-            $this->server->close($this->fd,true);
-            $this->logger->success("Clean up client $this->fd : Client fore closed from server");
+            $this->server->close($this->fd);
+            $this->logger->info("Clean up client $this->fd : Client fore closed from server");
         }
 
         // Cancel target receiver coroutine if needed
         if ($this->targetSocketReceiverCid) {
             if (!Coroutine::exists($this->targetSocketReceiverCid)){
                 $this->targetSocketReceiverCid = null;
-                $this->logger->success("Clean up client $this->fd : Target socket data already closed");
+                $this->logger->info("Clean up client $this->fd : Target socket data already closed");
             }
             else {
                 Coroutine::cancel($this->targetSocketReceiverCid);
                 $this->targetSocketReceiverCid = null;
-                $this->logger->success("Clean up client $this->fd : Target socket data receiver coroutine closed");
+                $this->logger->info("Clean up client $this->fd : Target socket data receiver coroutine closed");
             }
         }
     }

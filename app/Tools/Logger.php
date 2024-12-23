@@ -30,13 +30,18 @@ class Logger
 
     public bool $concurrentPrintInCli = false;
 
-    public bool $isCliLoggerEnable = true;
 
     public ?string $tag = null;
 
     public function __construct(?string $tag = null)
     {
         $this->tag = $tag;
+        $isDebugMode = EnvManager::getEnv('IS_DEBUG');
+        if ($isDebugMode)
+            self::$logLevel = self::INFO | self::SUCCESS | self::WARNING | self::ERROR;
+        else
+            self::$logLevel = self::SUCCESS|self::WARNING|self::ERROR;
+
     }
 
     /**
