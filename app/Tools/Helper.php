@@ -20,6 +20,17 @@ class Helper
             return intval($envValue);
         }
 
+        if (is_string($envValue)){
+            if ($envValue === 'true')
+                return true;
+            if ($envValue === 'false')
+                return false;
+        }
+
+        if (is_numeric($envValue)){
+            return intval($envValue);
+        }
+
         return $envValue;
     }
 }

@@ -1,13 +1,10 @@
 <?php
-/**
- * User: Mirataollahi ( @Mirataollahi124 )
- * Date: 12/17/24  Time: 5:14 PM
- */
 
 namespace App\Master;
 
 use App\BaseServer;
 use App\Metrics\Metric;
+use App\Tools\Helper;
 use App\Tools\Logger;
 use RuntimeException;
 use Swoole\Http\Request;
@@ -17,9 +14,13 @@ use Throwable;
 class MasterServer
 {
     private Logger $logger;
+    public string $host;
+    public int $port;
 
     public function __construct()
     {
+        $this->host = Helper::getEnv('ADMIN_HOST');
+        $this->port = intval(Helper::getEnv('ADMIN_PORT'));
         $this->logger = new Logger('HTTP_PANEL');
         $httpServer = BaseServer::$socksServer->server->addlistener(BaseServer::$socksHost, BaseServer::$socksPort + 1, SWOOLE_SOCK_TCP);
         if ($httpServer === false) {
