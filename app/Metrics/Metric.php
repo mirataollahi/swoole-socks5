@@ -2,6 +2,7 @@
 
 namespace App\Metrics;
 
+
 enum Metric: string
 {
     case COROUTINE_NUM = 'coroutine_num';
@@ -14,11 +15,12 @@ enum Metric: string
     case ABORT_CLIENT_COUNT = 'abort_client_count';
     case CLOSE_CLIENT_COUNT = 'close_client_count';
 
+
     /**
      * Helper method to get all metric names as a simple array of strings.
      */
     public static function values(): array
     {
-        return array_map(fn (Metric $m) => $m->value, self::cases());
+        return array_map(fn(Metric $m) => $m->value, self::cases());
     }
 }

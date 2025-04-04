@@ -6,8 +6,8 @@ use App\BaseServer;
 use App\Exceptions\HandshakeErrorException;
 use App\Exceptions\InvalidPacketLengthException;
 use App\Exceptions\InvalidSocksVersionException;
-use App\Tools\Logger;
-use App\Tools\Utils;
+use App\Tools\Helpers\Utils;
+use App\Tools\Logger\Logger;
 use App\Types\AuthMethod;
 use App\Types\HandshakeStatus;
 use App\Types\SocksVersion;
@@ -33,6 +33,8 @@ class Socks5Client
     public array $supportAuthMethods = [];
     public HandshakeStatus $handshakeStatus;
     private bool $authNeeded = false;
+
+    public array $openTargetSockets = [];
 
     public function __construct(Server $server, int $fd, int $reactorId, int $workerId, array $userInfo = [])
     {
@@ -310,6 +312,7 @@ class Socks5Client
     {
         $this->targetSocketReceiverCid = go(function () use ($host, $port) {
             $sock = new Socket(AF_INET, SOCK_STREAM, 0);
+            $this->logger->info("TCP Client connecting to $host:$port for client $this->fd ...");
             if (!$sock->connect($host, $port, 3)) {
                 $this->logger->warning("Connection to $host:$port failed for client $this->fd");
                 $this->sendToClient("\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00");

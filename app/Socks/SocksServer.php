@@ -3,8 +3,8 @@
 namespace App\Socks;
 
 use App\BaseServer;
-use App\Tools\EnvManager;
-use App\Tools\Logger;
+use App\Tools\Config\EnvManager;
+use App\Tools\Logger\Logger;
 use Swoole\Server;
 use Swoole\Server\Port;
 
@@ -34,7 +34,6 @@ class SocksServer
         $this->server = BaseServer::$masterServer->server->addlistener($this->host,$this->port,SWOOLE_SOCK_TCP);
 
         $this->server->set([
-
             'hook_flags' => SWOOLE_HOOK_ALL,
             'enable_coroutine' => true,
             'tcp_fastopen' => true,

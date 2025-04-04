@@ -1,31 +1,43 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace App\Master;
 
 use App\BaseServer;
 use App\Metrics\Metric;
-use App\Tools\EnvManager;
-use App\Tools\Logger;
-use Swoole\Http\Server;
+use App\Tools\Config\EnvManager;
+use App\Tools\Logger\Logger;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
+use Swoole\Http\Server;
 use Throwable;
 
 class MasterServer
 {
+    /** Master server logger service instance */
     private Logger $logger;
+
+    /** Master proxy tcp server host address */
     public string $host;
+
+    /** Master proxy server port number */
     public int $port;
+
+    /** Master tcp server  */
     public Server $server;
+
+    /** Application container instance */
     public BaseServer $appContext;
 
+    /**
+     * Create master server single instance in application
+     */
     public function __construct(BaseServer $appContext)
     {
         $this->appContext = $appContext;
         $this->host = EnvManager::getEnv('ADMIN_HOST');
         $this->port = intval(EnvManager::getEnv('ADMIN_PORT'));
-        $this->logger = new Logger('HTTP_PANEL');
-        $this->server = new Server($this->host,$this->port);
+        $this->logger = new Logger('SERVER');
+        $this->server = new Server($this->host, $this->port);
         $this->server->set([
             'worker_num' => 4,
             'hook_flags' => SWOOLE_HOOK_ALL,
@@ -35,7 +47,7 @@ class MasterServer
             'log_level' => SWOOLE_LOG_WARNING,
         ]);
         $this->server->on('Start', [$this, 'onStart']);
-        $this->server->on('request', [$this, 'on_request']);
+        $this->server->on('request', [$this, 'onRequest']);
         $this->server->on('WorkerStart', [$this, 'onWorkerStart']);
         $this->server->on('WorkerStop', [$this, 'onWorkerStop']);
         $this->server->on('AfterReload', [$this, 'onAfterReload']);
@@ -45,7 +57,11 @@ class MasterServer
         $this->server->on('WorkerExit', [$this, 'onWorkerExit']);
         $this->server->on('WorkerError', [$this, 'onWorkerError']);
     }
-    public function on_request(Request $request, Response $response): void
+
+    /**
+     * Handle received http request from client
+     */
+    public function onRequest(Request $request, Response $response): void
     {
         try {
             $response->header('Content-Type', 'text/html');
@@ -60,48 +76,28 @@ class MasterServer
         }
     }
 
+    /**
+     * Handle get server and worker processes metrics
+     */
     public function handleGetMetricsRequest(Request $request, Response $response): void
     {
-        $this->logger->info("Handling http web panel get metrics request ...");
-
-        $metrics = [
-            'total' => []
-        ];
-
-        // Fetch global stats once
-        $serverStats = BaseServer::$masterServer->server->stats();
-        $metrics['total']['download_size'] = $serverStats['total_recv_bytes'] ?? 0;
-        $metrics['total']['upload_size'] = $serverStats['total_send_bytes'] ?? 0;
-
-        $workerCount = BaseServer::$workerCount;
-        $metricKeys = Metric::cases();
-
-        foreach ($metricKeys as $metricCase) {
-            // Ensure total for this metric is initialized to zero
-            if (!isset($metrics['total'][$metricCase->value])) {
-                $metrics['total'][$metricCase->value] = 0;
-            }
-
-            for ($workerId = 0; $workerId < $workerCount; $workerId++) {
-                // Retrieve the metric for the specific worker
-                $metricValue = BaseServer::$metricManager->get($metricCase->value, $workerId) ?? 0;
-
-                // Store the worker's metric
-                $metrics["worker_$workerId"][$metricCase->value] = $metricValue;
-
-                // Accumulate the total
-                $metrics['total'][$metricCase->value] += $metricValue;
-            }
+        /** Handle chrome double request issue */
+        if ($request->server['path_info'] == '/favicon.ico' || $request->server['request_uri'] == '/favicon.ico') {
+            $response->end();
+            return;
         }
+        $path = trim($request->server['request_uri'], '/');
+        $this->logger->success("HTTP Request received with path $path");
 
-        // Perform any normalization or post-processing on the totals
-        $metrics = $this->normalizeTotalMetrics($metrics);
-
+        $metrics = BaseServer::$metricManager->getTotalMetrics();
         // Set the response headers and body
         $response->setHeader('Content-Type', 'application/json');
-        $response->end(json_encode($metrics));
+        $response->end(json_encode($metrics,JSON_PRETTY_PRINT));
     }
 
+    /**
+     * Handle master proxy tcp server started event handler
+     */
     public function onStart(Server $server): void
     {
         $socksHost = BaseServer::$socksServer->server->host;
@@ -109,6 +105,10 @@ class MasterServer
         $this->logger->success("Socks5 server started at $socksHost:$socksPort");
         $this->logger->success("Master server started at $server->host:$server->port");
     }
+
+    /**
+     * Normalize worker process metrics to human-readable metrics
+     */
     public function normalizeTotalMetrics(array $metrics): array
     {
         $metrics['total']['download_data_size'] = $this->toHumanReadableSize($metrics['total']['download_size']);
@@ -116,17 +116,22 @@ class MasterServer
         return $metrics;
     }
 
-
+    /**
+     * Handle not defined route request and create not found response
+     */
     public function handleNotFoundRequest(Response $response): void
     {
         $response->setHeader('Content-Type', 'text-html');
         $response->end("Page not found (404)");
     }
 
+    /**
+     * Convert bytes format to human-readable size format
+     */
     public function toHumanReadableSize(float|int|null $bytes, int $precision = 2): string
     {
         if (empty($bytes))
-            return 0;
+            return '0';
         $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
         $index = 0;
 
@@ -138,45 +143,69 @@ class MasterServer
         return number_format(round($bytes, $precision)) . ' ' . $units[$index];
     }
 
+    /**
+     * Master server worker process started event handler
+     */
     public function onWorkerStart(Server $server, int $workerId): void
     {
         $this->logger->info("Server worker #$workerId started with pid {$server->getWorkerPid()}");
         $this->appContext->initWorkerLayer($workerId);
     }
 
+    /**
+     * Master server worker process stopped event handler
+     */
     public function onWorkerStop(Server $server, int $workerId): void
     {
         $this->logger->warning("Server worker #$workerId stopped with pid {$server->getWorkerId()}");
     }
 
+    /**
+     * Worker process reloaded event handler
+     */
     public function onAfterReload(Server $server): void
     {
         $this->logger->warning("Reloading finished in worker {$server->getWorkerId()} and pid {$server->getWorkerPid()}");
     }
 
+    /**
+     * Worker process starting reloading event handler (Before reload)
+     */
     public function onBeforeReload(Server $server): void
     {
         $this->logger->success("Reloading worker {$server->getWorkerId()} and pid {$server->getWorkerPid()}");
     }
 
+    /**
+     * Master server manager worker process started event handler
+     */
     public function onManagerStart(Server $server): void
     {
         $this->logger->info("Manager process started with pid {$server->getManagerPid()}");
     }
 
+    /**
+     * Master server manager worker process stopped event handler
+     */
     public function onManagerStop(Server $server): void
     {
         $this->logger->warning("Manager process stopped with pid {$server->getManagerPid()}");
     }
 
+    /**
+     * Master server worker process exited event handler
+     */
     public function onWorkerExit(Server $server, int $workerId): void
     {
         $this->logger->warning("[wid:{$server->getWorkerId()}]Worker $workerId with pid {$server->getWorkerPid()} exited");
+        BaseServer::closeWorkerLayer($workerId);
     }
 
+    /**
+     * Master server worker process error happen event handler
+     */
     public function onWorkerError(Server $server, int $workerId, int $workerPid, int $exitCode, int $signal): void
     {
         $this->logger->error("Worker Error : [worker_id:$workerId] [worker_pid:$workerPid] [exit_code:$exitCode] [signal:$signal] [server_port:$server->port]");
     }
-
 }
