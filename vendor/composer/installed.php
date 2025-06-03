@@ -3,7 +3,7 @@
         'name' => 'mirataollahi/swoole-socks5-proxy',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => '45d38615cb1839dfab5085c16706085177ad27ca',
+        'reference' => 'f605fef0c569359d2fdf76319cb3f8794b3906e0',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'mirataollahi/swoole-socks5-proxy' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => '45d38615cb1839dfab5085c16706085177ad27ca',
+            'reference' => 'f605fef0c569359d2fdf76319cb3f8794b3906e0',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
