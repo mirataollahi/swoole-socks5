@@ -5,7 +5,7 @@ namespace App\Tools\Tester;
 use App\Tools\Logger\Logger;
 
 /**
- * PHP swoole async test bootloader and coroutine manager
+ * PHP swoole async tests bootloader and coroutine manager
  */
 class AsyncTestLoader
 {

@@ -3,6 +3,7 @@
 namespace App\Socks;
 
 use App\BaseServer;
+use App\Tools\Config\Config;
 use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
 use Swoole\Server;
@@ -29,8 +30,8 @@ class SocksServer
 
     public function initServer(): void
     {
-        $this->host = EnvManager::getEnv('SOCKET_HOST', BaseServer::$socksHost);
-        $this->port = EnvManager::getEnv('SOCKET_PORT', BaseServer::$socksPort);
+        $this->host = Config::$socks5_host;
+        $this->port = Config::$socks5_port;
         $this->server = BaseServer::$masterServer->server->addlistener($this->host,$this->port,SWOOLE_SOCK_TCP);
 
         $this->server->set([

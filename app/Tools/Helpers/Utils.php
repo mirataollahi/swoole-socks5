@@ -126,4 +126,16 @@ class Utils
             return false;
         }
     }
+
+    public static function safeJsonDecode(?string $json): array|false
+    {
+        try {
+            if (empty($json)) {
+                return [];
+            }
+            return json_decode($json, true);
+        } catch (Throwable) {
+            return false;
+        }
+    }
 }

@@ -5,6 +5,7 @@ namespace App;
 use App\Master\MasterServer;
 use App\Metrics\MetricManager;
 use App\Socks\SocksServer;
+use App\Tools\Config\Config;
 use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
@@ -60,10 +61,10 @@ class BaseServer
     public static function run(): void
     {
         try {
-            BaseServer::$socksHost = EnvManager::getEnv('SOCKS5_HOST');
-            BaseServer::$socksPort = EnvManager::getEnv('SOCKS5_PORT');
-            BaseServer::$socksUsername = EnvManager::getEnv('SOCKS5_USERNAME',false);
-            BaseServer::$socksPassword = EnvManager::getEnv('SOCKS5_PASSWORD',false);
+            BaseServer::$socksHost = Config::$socks5_host;
+            BaseServer::$socksPort = Config::$socks5_port;
+            BaseServer::$socksUsername = Config::$socks5_username;
+            BaseServer::$socksPassword = Config::$socks5_password;
             new self();
         } catch (Throwable $exception) {
             Logger::echo("Startup error : $exception", LogLevel::ERROR);

@@ -4,6 +4,7 @@ namespace App\Master;
 
 use App\BaseServer;
 use App\Metrics\Metric;
+use App\Tools\Config\Config;
 use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
 use Swoole\Http\Request;
@@ -34,8 +35,8 @@ class MasterServer
     public function __construct(BaseServer $appContext)
     {
         $this->appContext = $appContext;
-        $this->host = EnvManager::getEnv('ADMIN_HOST');
-        $this->port = intval(EnvManager::getEnv('ADMIN_PORT'));
+        $this->host = Config::$admin_host;
+        $this->port = Config::$admin_port;
         $this->logger = new Logger('SERVER');
         $this->server = new Server($this->host, $this->port);
         $this->server->set([
