@@ -334,9 +334,8 @@ class Socks5Client
                     $this->close();
                     break;
                 }
-                $this->sendToClient($data);
-                $this->logger->info("Data forwarder from target to client server successfully");
-            }
+                /** Send data to proxy client */
+                $this->sendToClient($data);}
         });
     }
 

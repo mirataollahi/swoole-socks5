@@ -1,11 +1,14 @@
 {
   "name": "mirataollahi/swoole-socks5-proxy",
-  "description": "A SOCKS5 proxy server written in PHP using Swoole",
+  "description": "A high-performance SOCKS5 proxy server written in PHP using Swoole",
   "keywords": [
     "socks5",
     "proxy",
     "swoole",
-    "php"
+    "php",
+    "tcp",
+    "udp",
+    "async"
   ],
   "license": "MIT",
   "authors": [
@@ -18,7 +21,7 @@
   ],
   "autoload": {
     "psr-4": {
-      "App\\": "../app",
+      "App\\": "app",
       "Test\\": "../test"
     }
   },
@@ -27,6 +30,11 @@
     "ext-swoole": "*",
     "monolog/monolog": "^2.0",
     "ext-sockets": "*"
+  },
+  "support": {
+    "email": "amir3672@gmail.com",
+    "issues": "https://github.com/mirataollahi/swoole-socks5/issues",
+    "source": "https://github.com/mirataollahi/swoole-socks5"
   },
   "minimum-stability": "stable",
   "prefer-stable": true

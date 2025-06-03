@@ -12,24 +12,16 @@ use Throwable;
 
 class BaseServer
 {
-    /**
-     * Application instance logger service
-     */
+    /** Application instance logger service */
     public Logger $logger;
 
-    /**
-     * Single master tcp server and network layer
-     */
+    /** Single master tcp server and network layer */
     public static SocksServer $socksServer;
 
-    /**
-     * Proxy server host address
-     */
+    /** Proxy server host address */
     public static string $socksHost;
 
-    /**
-     * Proxy server port number
-     */
+    /** Proxy server port number */
     public static int $socksPort;
 
     /**
@@ -44,24 +36,16 @@ class BaseServer
      */
     public static string|false $socksPassword = false;
 
-    /**
-     * Server worker process count
-     */
+    /** Server worker process count */
     public static  int $workerCount = 4;
 
-    /**
-     * Manager and report worker processes metrics and report sum of them
-     */
+    /** Manager and report worker processes metrics and report sum of them */
     public static MetricManager $metricManager;
 
-    /**
-     * Master tcp server and network layer
-     */
+    /** Master tcp server and network layer */
     public static MasterServer $masterServer;
 
-    /**
-     * Run application and services and then start server
-     */
+    /** Run application and services and then start server */
     public function __construct()
     {
         $this->logger = new Logger('BASE_SERVER');
@@ -72,9 +56,7 @@ class BaseServer
         self::$masterServer->server->start();
     }
 
-    /**
-     * Run proxy application statically
-     */
+    /** Run proxy application statically */
     public static function run(): void
     {
         try {
@@ -88,23 +70,22 @@ class BaseServer
         }
     }
 
-    public static function getWorkerId(): int
+    /** Get current worker id in worker layer */
+    public static function getWorkerId(): int|false
     {
-        return self::$masterServer->server->getWorkerId();
+        if(isset(self::$masterServer) && isset(self::$socksServer->server)) {
+            return self::$masterServer->server->getWorkerId();
+        }
+        return false;
     }
 
-
-    /**
-     * The method run in worker layer and run after worker started
-     */
+    /** The method run in worker layer and run after worker started */
     public function initWorkerLayer(int $workerId): void
     {
         self::$metricManager->initialize($workerId);
     }
 
-    /**
-     * Worker process is exiting . Try to stop running codes in this worker process
-     */
+    /** Worker process is exiting . Try to stop running codes in this worker process */
     public static function closeWorkerLayer(int $workerId): void
     {
         Logger::echo("Start cleanup worker process $workerId before exist and stop ... ");

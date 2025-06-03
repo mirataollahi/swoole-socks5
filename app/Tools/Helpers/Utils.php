@@ -101,4 +101,29 @@ class Utils
     {
         return Coroutine::exists(Coroutine::getCid());
     }
+
+    /** Generate file path dynamically base on base app path directory */
+    public static function path(?string $path = null): string
+    {
+        if (str_starts_with($path, '/')) {
+            $path = trim(ltrim($path, '/'));
+        }
+        $basePath = BASE_PATH;
+        return $path ? "{$basePath}/{$path}" : $basePath;
+    }
+
+    /** Get file content base on app base path directory */
+    public static function getFileContent(string $path): string|false
+    {
+        try {
+            $fullPath = static::path($path);
+            if (file_exists($fullPath)) {
+                return file_get_contents($fullPath);
+            }
+            return false;
+        } catch (Throwable $exception) {
+            Logger::echo("Error in get file content : {$exception->getMessage()}");
+            return false;
+        }
+    }
 }

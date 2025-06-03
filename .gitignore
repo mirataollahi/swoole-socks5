@@ -1,2 +1,6 @@
 .idea
 composer/composer.lock
+.env
+composer.lock
+.env.production]
+data/*

@@ -6,7 +6,6 @@ use App\Tools\Helpers\Utils;
 use App\Tools\Logger\LogPrinter\CliLogPrinter;
 use App\Tools\Logger\LogPrinter\LogPrinterInterface;
 use Psr\Log\LoggerInterface;
-use Swoole\Coroutine;
 use Throwable;
 use Stringable;
 
