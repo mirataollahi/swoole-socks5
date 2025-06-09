@@ -5,11 +5,10 @@ namespace App\Tools\Logger;
 use App\Tools\Helpers\Utils;
 use App\Tools\Logger\LogPrinter\CliLogPrinter;
 use App\Tools\Logger\LogPrinter\LogPrinterInterface;
-use Psr\Log\LoggerInterface;
 use Throwable;
 use Stringable;
 
-class Logger implements LoggerInterface
+class Logger
 {
     /**
      * Logger service instance active levels (Binary logs levels)

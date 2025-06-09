@@ -6,7 +6,6 @@ use App\Master\MasterServer;
 use App\Metrics\MetricManager;
 use App\Socks\SocksServer;
 use App\Tools\Config\Config;
-use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
 use Throwable;

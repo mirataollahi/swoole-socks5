@@ -4,7 +4,6 @@ namespace App\Socks;
 
 use App\BaseServer;
 use App\Tools\Config\Config;
-use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
 use Swoole\Server;
 use Swoole\Server\Port;
