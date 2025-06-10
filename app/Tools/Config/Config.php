@@ -12,6 +12,7 @@ use Throwable;
 
 class Config
 {
+    public static bool $socks5_enabled;
     public static string $socks5_host;
     public static int $socks5_port;
     public static bool $socks5_auth_enable;
@@ -22,6 +23,11 @@ class Config
     public static int $admin_port;
     public static string $prometheus_host;
     public static int $prometheus_port;
+
+    /** Http Proxy Server */
+    public static bool $http_proxy_enabled;
+    public static string $http_proxy_host;
+    public static int $http_proxy_port;
 
     protected static bool $isInitialized = false;
     private static array $userEnvs;

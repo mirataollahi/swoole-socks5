@@ -3,10 +3,10 @@
 namespace App\Master;
 
 use App\BaseServer;
-use App\Metrics\Metric;
 use App\Tools\Config\Config;
-use App\Tools\Config\EnvManager;
 use App\Tools\Logger\Logger;
+use App\Tools\Logger\LogLevel;
+use App\Types\AbstractProxyServer;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
 use Swoole\Http\Server;
@@ -101,10 +101,11 @@ class MasterServer
      */
     public function onStart(Server $server): void
     {
-        $socksHost = BaseServer::$socksServer->server->host;
-        $socksPort = BaseServer::$socksServer->server->port;
-        $this->logger->success("Socks5 server started at $socksHost:$socksPort");
-        $this->logger->success("Master server started at $server->host:$server->port");
+        foreach (BaseServer::$proxyServers as $proxyServerName => $proxyServer) {
+            /** @var AbstractProxyServer $proxyServer */
+            $proxyServer->onProxyStart();
+        }
+        Logger::echo('All proxy server started',LogLevel::SUCCESS);
     }
 
     /**

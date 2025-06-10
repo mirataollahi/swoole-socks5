@@ -2,12 +2,14 @@
 
 namespace App;
 
+use App\HttpProxy\HttpProxyServer;
 use App\Master\MasterServer;
 use App\Metrics\MetricManager;
-use App\Socks\SocksServer;
+use App\Socks\Socks5Server;
 use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
+use App\Types\ProxyServer;
 use Throwable;
 
 class BaseServer
@@ -16,13 +18,16 @@ class BaseServer
     public Logger $logger;
 
     /** Single master tcp server and network layer */
-    public static SocksServer $socksServer;
+    public static Socks5Server $socksServer;
 
     /** Proxy server host address */
     public static string $socksHost;
 
     /** Proxy server port number */
     public static int $socksPort;
+
+    /** Enabled proxy servers */
+    public static array $proxyServers = [];
 
     /**
      * Socks5 proxy server authentication username
@@ -37,7 +42,7 @@ class BaseServer
     public static string|false $socksPassword = false;
 
     /** Server worker process count */
-    public static  int $workerCount = 4;
+    public static int $workerCount = 4;
 
     /** Manager and report worker processes metrics and report sum of them */
     public static MetricManager $metricManager;
@@ -51,9 +56,23 @@ class BaseServer
         $this->logger = new Logger('BASE_SERVER');
         $this->logger->info("Starting application .... ");
         self::$metricManager = new MetricManager(self::$workerCount);
-        self::$masterServer= new MasterServer($this);
-        self::$socksServer = new SocksServer($this);
+        self::$masterServer = new MasterServer($this);
+
+        /** Initialize proxy servers */
+        $this->initProxyServers();
+
         self::$masterServer->server->start();
+    }
+
+    /** Initialize proxy servers base on defined configs */
+    public function initProxyServers(): void
+    {
+        // if (Config::$socks5_enabled)
+            // self::$proxyServers [ProxyServer::SOCKS5->name] = new Socks5Server($this);
+
+
+        if (Config::$http_proxy_enabled)
+            self::$proxyServers [ProxyServer::HTTP->name] = new HttpProxyServer($this);
     }
 
     /** Run proxy application statically */
@@ -73,7 +92,7 @@ class BaseServer
     /** Get current worker id in worker layer */
     public static function getWorkerId(): int|false
     {
-        if(isset(self::$masterServer) && isset(self::$socksServer->server)) {
+        if (isset(self::$masterServer?->server)) {
             return self::$masterServer->server->getWorkerId();
         }
         return false;

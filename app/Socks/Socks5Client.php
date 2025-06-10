@@ -10,53 +10,40 @@ use App\Tools\Helpers\Utils;
 use App\Tools\Logger\Logger;
 use App\Types\AuthMethod;
 use App\Types\HandshakeStatus;
+use App\Types\ProxyClient;
 use App\Types\SocksVersion;
 use Swoole\Coroutine;
 use Swoole\Coroutine\Socket;
 use Swoole\Server;
 use Throwable;
 
-class Socks5Client
+class Socks5Client extends ProxyClient
 {
-    public Logger $logger;
-    public int $fd;
-    public int $workerId;
-    public int $reactorId;
-    public array $userInfo;
     private ?Socket $targetSocket = null;
     private bool $isConnected = false;
-    private bool $isClosing = false;
-    public Server $server;
     public ?int $targetSocketReceiverCid = null;
-
     public ?SocksVersion $socksVersion = null;
     public array $supportAuthMethods = [];
-    public HandshakeStatus $handshakeStatus;
+    public HandshakeStatus $handshakeStatus = HandshakeStatus::NOT_STARTED;
     private bool $authNeeded = false;
-
     public array $openTargetSockets = [];
 
-    public function __construct(Server $server, int $fd, int $reactorId, int $workerId, array $userInfo = [])
-    {
-        $this->server = $server;
-        $this->fd = $fd;
-        $this->reactorId = $reactorId;
-        $this->workerId = $workerId;
-        $this->userInfo = $userInfo;
-        $this->handshakeStatus = HandshakeStatus::NOT_STARTED;
-        $this->logger = new Logger("CLIENT_$fd");
 
-        $this->logger->success("Client $fd connected in worker $workerId");
+    /** Initialize socks5 client connection after connected */
+    public function initialize(): void
+    {
+        $this->logger->success("Client $this->fd connected");
     }
 
-    public function onReceive(string $data): void
+    /** handle received tcp packet from the client connection */
+    public function onPacket(string $packet): void
     {
         if ($this->isClosing) {
             $this->logger->warning("Ignoring packet since client $this->fd is closing");
             return;
         }
 
-        $len = strlen($data);
+        $len = strlen($packet);
         $this->logger->info("Client $this->fd received packet length: $len");
 
         try {
@@ -64,7 +51,7 @@ class Socks5Client
             if ($this->handshakeStatus !== HandshakeStatus::FINISHED) {
                 // If we need auth and handshake is running, handle auth packet
                 if ($this->authNeeded && $this->handshakeStatus === HandshakeStatus::RUNNING) {
-                    $this->handleAuthPacket($data);
+                    $this->handleAuthPacket($packet);
                     return; // After successful auth, handshake is finished
                 }
 
@@ -73,8 +60,8 @@ class Socks5Client
                     throw new InvalidPacketLengthException("Handshake packet too short");
                 }
 
-                if (Utils::hexCompare($data[0], '0x05')) {
-                    $this->handleHandshakePacket($data);
+                if (Utils::hexCompare($packet[0], '0x05')) {
+                    $this->handleHandshakePacket($packet);
                 } else {
                     throw new HandshakeErrorException("Unsupported SOCKS version or handshake error");
                 }
@@ -88,8 +75,8 @@ class Socks5Client
                     throw new InvalidPacketLengthException("Control packet too short");
                 }
 
-                if (Utils::hexCompare($data[0], '0x05')) {
-                    $this->handleSocks5ControlPacket($data);
+                if (Utils::hexCompare($packet[0], '0x05')) {
+                    $this->handleSocks5ControlPacket($packet);
                 } else {
                     $this->logger->warning("Invalid data after handshake, no target connected. Closing client $this->fd.");
                     $this->close();
@@ -100,7 +87,7 @@ class Socks5Client
             // Target socket is established
             if ($this->isConnected && !$this->targetSocket->isClosed()) {
                 // Forward client data to the target
-                $this->targetSocket->send($data,1.5);
+                $this->targetSocket->send($packet,1.5);
             } else {
                 $this->logger->error("Target socket not connected for client $this->fd. Dropping data.");
             }
@@ -367,13 +354,8 @@ class Socks5Client
         $this->close();
     }
 
-    public function close(): void
+    public function free(int $flags = 0): void
     {
-        if ($this->isClosing) {
-            return;
-        }
-
-        $this->isClosing = true;
         $this->logger->info("Closing socks5 client $this->fd");
 
         // Close target socket if open
