@@ -32,23 +32,13 @@ Clone the repository and copy the `.env.example` to configure the environment:
 cp .env.example .env
 ```
 
-### 📦 Composer Installation
-
-Install required dependencies using Composer:
-
-If you have Composer installed globally:
-
-```bash
-composer install
-```
-
-
 ### ⚙️ Running the Proxy
 
 To start the SOCKS5 proxy server, simply run the following command in your terminal:
 
 ```bash
-php server.php
+chmod +x proxy.sh
+sh proxy.sh
 ```
 
 

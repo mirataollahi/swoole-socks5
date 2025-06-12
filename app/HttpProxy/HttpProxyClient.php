@@ -49,7 +49,7 @@ class HttpProxyClient extends ProxyClient
 
         $remote = new Socket(AF_INET, SOCK_STREAM, 0);
         if (!$remote->connect($host, $port, 5)) {
-            $this->sendPacket("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+            $this->sendPacket(HttpProxyResult::HTTP_BAD_GATEWAY_502->value);
             $this->safeClose();
             return;
         }
@@ -85,7 +85,7 @@ class HttpProxyClient extends ProxyClient
         $lines = explode("\r\n", $rawRequest);
         $requestLine = array_shift($lines);
         if (!$requestLine || !preg_match('/^(GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH)\s+(\S+)\s+HTTP\/1\.\d$/i', $requestLine, $matches)) {
-            $this->sendPacket("HTTP/1.1 400 Bad Request\r\n\r\n");
+            $this->sendPacket(HttpProxyResult::HTTP_BAD_REQUEST_400->value);
             $this->safeClose();
             return;
         }
@@ -95,7 +95,7 @@ class HttpProxyClient extends ProxyClient
         $parsedUrl = parse_url($url);
 
         if (!isset($parsedUrl['host'])) {
-            $this->sendPacket("HTTP/1.1 400 Bad Request\r\n\r\n");
+            $this->sendPacket(HttpProxyResult::HTTP_BAD_REQUEST_400->value);
             $this->safeClose();
             return;
         }
@@ -111,7 +111,7 @@ class HttpProxyClient extends ProxyClient
 
         $remote = new Socket(AF_INET, SOCK_STREAM, 0);
         if (!$remote->connect($host, $port, 5)) {
-            $this->sendPacket("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+            $this->sendPacket(HttpProxyResult::HTTP_BAD_GATEWAY_502->value);
             $this->safeClose();
             return;
         }
@@ -120,7 +120,7 @@ class HttpProxyClient extends ProxyClient
 
         // Send request
         if (!$remote->send($rewrittenRequest)) {
-            $this->sendPacket("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+            $this->sendPacket(HttpProxyResult::HTTP_BAD_GATEWAY_502->value);
             $this->safeClose();
             return;
         }
