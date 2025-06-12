@@ -6,17 +6,20 @@ services:
       context: .
       dockerfile: Dockerfile
     network_mode: host
-#    ports:
-#      - "8700:8700"
-#      - "8701:8701"
+    ports:
+      - "8700:8700"
     environment:
+      SOCKS5_ENABLED: true
       SOCKS5_HOST: "0.0.0.0"
-      SOCKS5_PORT: 8700
-      SOCKS5_AUTH_ENABLE: "false"
+      SOCKS5_PORT: "8700"
+      SOCKS5_AUTH_ENABLE: false
       SOCKS5_USERNAME: ""
       SOCKS5_PASSWORD: ""
-      IS_DEBUG: "true"
       ADMIN_HOST: "0.0.0.0"
       ADMIN_PORT: 8701
-      PROMETHEUS_EXP_HOST: "0.0.0.0"
-      PROMETHEUS_EXP_PORT: "8702"
+      PROMETHEUS_HOST: "0.0.0.0"
+      PROMETHEUS_PORT: 8702
+      HTTP_PROXY_ENABLED: true
+      HTTP_PROXY_HOST: "0.0.0.0"
+      HTTP_PROXY_PORT: 8800
+
