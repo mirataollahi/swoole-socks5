@@ -7,17 +7,18 @@ use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
 use ReflectionClass;
 use ReflectionProperty;
+use RuntimeException;
 use Throwable;
 
 class Config
 {
+    public static bool $is_debug;
     public static bool $socks5_enabled;
     public static string $socks5_host;
     public static int $socks5_port;
     public static bool $socks5_auth_enable;
     public static string $socks5_username;
     public static string $socks5_password;
-    public static bool $is_debug;
     public static string $admin_host;
     public static int $admin_port;
     public static string $prometheus_host;
@@ -30,7 +31,7 @@ class Config
 
     protected static bool $isInitialized = false;
     private static array $userEnvs;
-    protected static bool $debugMode = false;
+    protected static bool $enable_debug_log = false;
 
     /** Configs exists in the .env but the property do not defined in Config class */
     public static array $dotEnvExtraItems = [];
@@ -53,9 +54,13 @@ class Config
 
         /** Read .env file if exists in app base path */
         $dotEnvPath = Utils::path('.env');
-        if (file_exists($dotEnvPath)) {
-            $dotEnvs = self::getDotEnvContents($dotEnvPath);
-        } else $dotEnvs = [];
+        if (!file_exists($dotEnvPath)) {
+            $dotEnvPath = Utils::path('.env.example');
+            if (!file_exists($dotEnvPath)) {
+                throw new RuntimeException("dotenv file not found");
+            }
+        }
+        $dotEnvs = self::getDotEnvContents($dotEnvPath);
 
         /**
          * Importing app config
@@ -69,7 +74,7 @@ class Config
             $configName = trim($prop->getName());
             $systemEnvValue = getenv(strtoupper($configName));
             if ($systemEnvValue !== false) {
-                $prop->setValue(self::parsConfigValue($systemEnvValue,$prop->getType()->getName(),$prop->getType()->allowsNull()));
+                $prop->setValue(self::parsConfigValue($systemEnvValue, $prop->getType()->getName(), $prop->getType()->allowsNull()));
                 self::debugLog("Import config `$configName` with value `$systemEnvValue` from system environments");
 
                 /** Unset the env config from local .env list of defined */
@@ -82,7 +87,8 @@ class Config
             /** Config do not exist in system envs , so find it from .env values */
             if (array_key_exists($configName, $dotEnvs)) {
                 $dotEnvConfigValue = $dotEnvs[$configName];
-                $prop->setValue($dotEnvConfigValue);
+                $parsedValue = self::parsConfigValue($dotEnvConfigValue, $prop->getType()->getName(), $prop->getType()->allowsNull());
+                $prop->setValue($parsedValue);
                 /** Remove imported config from local .env items array  */
                 unset($dotEnvs[$configName]);
                 self::debugLog("Import config `$configName` with value `$dotEnvConfigValue` from defined .env file");
@@ -95,7 +101,7 @@ class Config
             foreach ($dotEnvs as $envName => $envValue) {
                 self::$dotEnvExtraItems[$envName] = $envValue;
                 self::debugLog(
-                    "Import config `$envName` with value `$envValue` from .env (property $envName do not defined in class Config)" ,
+                    "Import config `$envName` with value `$envValue` from .env (property $envName do not defined in class Config)",
                     LogLevel::WARNING
                 );
                 unset($dotEnvs[$envName]);
@@ -107,9 +113,9 @@ class Config
     }
 
     /** Log a message in config class if debug mode is enabled */
-    protected static function debugLog(string $message,LogLevel $level = LogLevel::INFO): void
+    protected static function debugLog(string $message, LogLevel $level = LogLevel::INFO): void
     {
-        if (self::$debugMode) {
+        if (self::$enable_debug_log) {
             Logger::echo($message, $level);
         }
     }
@@ -173,16 +179,16 @@ class Config
     /** Get application running mode is debug or not */
     public static function isDebug(): bool
     {
-        if (!isset(self::$is_debug)){
+        if (!isset(self::$is_debug)) {
             self::$is_debug = getenv('is_debug');
         }
         return self::$is_debug;
     }
 
-    public static function parsConfigValue(mixed $envValue,string $type,bool $nullable = false): mixed
+    public static function parsConfigValue(mixed $envValue, string $type, bool $nullable = false): mixed
     {
         /** Pars bool env value */
-        if ($type === 'bool'){
+        if ($type === 'bool') {
             if (empty($envValue)) {
                 return false;
             }
@@ -193,7 +199,7 @@ class Config
             if (in_array($envValue, ['0', 'false', 'no', 'off', '', null], true)) {
                 return false;
             }
-            if (is_numeric($envValue)){
+            if (is_numeric($envValue)) {
                 $envValue = intval($envValue);
                 return $envValue > 0;
             }
@@ -201,8 +207,8 @@ class Config
         }
 
         /** pars integer property */
-        if ($type === 'int' || $type === 'float'){
-            if (is_numeric($envValue)){
+        if ($type === 'int' || $type === 'float') {
+            if (is_numeric($envValue)) {
                 return $type === 'float' ? floatval($envValue) : intval($envValue);
             }
             return $nullable ? null : ($type === 'float' ? 0.0 : 0);
@@ -215,7 +221,7 @@ class Config
                 return $envValue;
             }
             $decoded = Utils::safeJsonDecode($envValue);
-            if ($decoded === false){
+            if ($decoded === false) {
                 Logger::echo("Error in casting json to array config value $envValue");
                 return [];
             }
