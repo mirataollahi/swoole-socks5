@@ -2,7 +2,7 @@
 
 namespace App\Socks;
 
-use App\BaseServer;
+use App\Application;
 use App\Exceptions\HandshakeErrorException;
 use App\Exceptions\InvalidPacketLengthException;
 use App\Exceptions\InvalidSocksVersionException;
@@ -235,15 +235,15 @@ class Socks5Client extends ProxyClient
     private function authenticate(string $username, string $password): bool
     {
         $this->logger->info("Authenticating client auth info .... ");
-        $serverUsername = BaseServer::$socksUsername;
-        $serverPassword = BaseServer::$socksPassword;
+        $serverUsername = Application::$socksUsername;
+        $serverPassword = Application::$socksPassword;
         if (empty($serverUsername) && empty($serverPassword)) {
             $this->logger->success("Client authenticated . server auth info is empty");
             return true;
         }
 
         // Hardcoded for demonstration; replace with real validation.
-        return $username === BaseServer::$socksUsername && $password === BaseServer::$socksPassword;
+        return $username === Application::$socksUsername && $password === Application::$socksPassword;
     }
 
     /**

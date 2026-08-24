@@ -2,7 +2,7 @@
 
 namespace App\Metrics;
 
-use App\BaseServer;
+use App\Application;
 use App\Tools\Helpers\Utils;
 use App\Tools\Logger\Logger;
 use App\Types\SafeDestructInterface;
@@ -103,7 +103,7 @@ class MetricManager implements SafeDestructInterface
     private function updateWorkerMetrics(): void
     {
         Utils::safeCode(function () {
-            $stats = BaseServer::$masterServer->server->stats();
+            $stats = Application::getContext()->masterServer->getStats();
             $this->set(Metric::COROUTINE_NUM , $stats['coroutine_num'] ?? 0);
             $this->set(Metric::RAM_USAGE , (float)(memory_get_usage(true)));
             $this->set(Metric::CPU_USAGE , (float)(sys_getloadavg()[0]));

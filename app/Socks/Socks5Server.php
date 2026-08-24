@@ -12,11 +12,15 @@ class Socks5Server extends AbstractProxyServer
     /** Socks5 proxy server name */
     public string $serverName = 'socks5';
 
+    /** Socks users credential manager */
+    public CredentialManager $credentialManager;
+
     /** Initialize socks5 proxy tcp server configs and events */
     public function initialize(): void
     {
         $this->host = Config::$socks5_host;
         $this->port = Config::$socks5_port;
+        $this->credentialManager = new CredentialManager();
     }
 
     /** Create socks5 proxy client connection instance */
@@ -43,5 +47,4 @@ class Socks5Server extends AbstractProxyServer
     {
         $this->logger->success("Socks5 proxy server started at $this->host:$this->port");
     }
-
 }

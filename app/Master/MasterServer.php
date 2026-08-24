@@ -2,7 +2,7 @@
 
 namespace App\Master;
 
-use App\BaseServer;
+use App\Application;
 use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
@@ -10,6 +10,7 @@ use App\Types\AbstractProxyServer;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
 use Swoole\Http\Server;
+use Swoole\Server\Port;
 use Throwable;
 
 class MasterServer
@@ -24,28 +25,22 @@ class MasterServer
     public int $port;
 
     /** Master tcp server  */
-    public Server $server;
-
-    /** Application container instance */
-    public BaseServer $appContext;
+    private Server $server;
 
     /**
      * Create master server single instance in application
      */
-    public function __construct(BaseServer $appContext)
+    public function __construct()
     {
-        $this->appContext = $appContext;
         $this->host = Config::$admin_host;
         $this->port = Config::$admin_port;
         $this->logger = new Logger('SERVER');
-        $this->server = new Server($this->host, $this->port);
+        $this->server = new Server($this->host, $this->port,SWOOLE_BASE);
         $this->server->set([
-            'worker_num' => 4,
+            'worker_num' => 1,
             'hook_flags' => SWOOLE_HOOK_ALL,
             'enable_coroutine' => true,
-            'tcp_fastopen' => true,
-            'max_request' => 6000,
-            'log_level' => SWOOLE_LOG_WARNING,
+            'log_level' => SWOOLE_LOG_DEBUG,
         ]);
         $this->server->on('Start', [$this, 'onStart']);
         $this->server->on('request', [$this, 'onRequest']);
@@ -57,6 +52,21 @@ class MasterServer
         $this->server->on('ManagerStop', [$this, 'onManagerStop']);
         $this->server->on('WorkerExit', [$this, 'onWorkerExit']);
         $this->server->on('WorkerError', [$this, 'onWorkerError']);
+    }
+
+    public function start(): void
+    {
+        $this->server->start();
+    }
+
+    public function getStats(): array
+    {
+        return $this->server->stats();
+    }
+
+    public function addListener(string $host,string $port,int $type = SWOOLE_TCP): Port|false
+    {
+        return $this->server->addlistener($host, $port,$type);
     }
 
     /**
@@ -90,7 +100,7 @@ class MasterServer
         $path = trim($request->server['request_uri'], '/');
         $this->logger->success("HTTP Request received with path $path");
 
-        $metrics = BaseServer::$metricManager->getTotalMetrics();
+        $metrics = Application::getContext()->metrics->getTotalMetrics();
         // Set the response headers and body
         $response->setHeader('Content-Type', 'application/json');
         $response->end(json_encode($metrics,JSON_PRETTY_PRINT));
@@ -101,7 +111,8 @@ class MasterServer
      */
     public function onStart(Server $server): void
     {
-        foreach (BaseServer::$proxyServers as $proxyServerName => $proxyServer) {
+        $proxyServers = Application::getContext()->proxies;
+        foreach ($proxyServers as $proxyServerName => $proxyServer) {
             /** @var AbstractProxyServer $proxyServer */
             $proxyServer->onProxyStart();
         }
@@ -200,7 +211,7 @@ class MasterServer
     public function onWorkerExit(Server $server, int $workerId): void
     {
         $this->logger->warning("[wid:{$server->getWorkerId()}]Worker $workerId with pid {$server->getWorkerPid()} exited");
-        BaseServer::closeWorkerLayer($workerId);
+        Application::getContext()->closeWorkerLayer($workerId);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 namespace App\Types;
 
-use App\BaseServer;
+use App\Application;
 use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use Swoole\Server;
@@ -29,7 +29,7 @@ abstract class AbstractProxyServer
     abstract public function onProxyStart();
 
     /** Create an instance of proxy server */
-    public function __construct(public BaseServer $appContext)
+    public function __construct(public Application $appContext)
     {
         $this->logger = new Logger(strtoupper($this->serverName));
         $this->initialize();
@@ -39,7 +39,7 @@ abstract class AbstractProxyServer
     /** Config proxy server events and configs */
     public function initializeServer(): void
     {
-        $this->server = BaseServer::$masterServer->server->addlistener($this->host,$this->port,SWOOLE_SOCK_TCP);
+        $this->server = Application::getContext()->masterServer->addListener($this->host,$this->port,SWOOLE_SOCK_TCP);
         $this->server->set($this->getServerConfigs());
         $this->server->on('Connect', [$this, 'onConnect']);
         $this->server->on('Receive', [$this, 'onReceive']);

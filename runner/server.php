@@ -1,15 +1,15 @@
 <?php
 
-use App\BaseServer;
+use App\Application;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
 
+require_once __DIR__ . "/../bootstrap.php";
 
 try {
-    require_once __DIR__ . "/../bootstrap.php";
     /** Run application and master proxy server */
-    BaseServer::run();
-
+    $app = Application::getContext();
+    $app->start();
 } catch (Throwable $exception) {
     Logger::echo(
         "Startup error : {$exception->getMessage()} in {$exception->getFile()}:{$exception->getLine()}}",
