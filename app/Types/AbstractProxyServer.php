@@ -3,7 +3,6 @@
 namespace App\Types;
 
 use App\BaseServer;
-use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use Swoole\Server;
 use Swoole\Server\Port;

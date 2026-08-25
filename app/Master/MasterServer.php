@@ -3,7 +3,6 @@
 namespace App\Master;
 
 use App\BaseServer;
-use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
 use App\Types\AbstractProxyServer;
@@ -11,6 +10,7 @@ use Swoole\Http\Request;
 use Swoole\Http\Response;
 use Swoole\Http\Server;
 use Throwable;
+use App\Tools\Config\Config;
 
 class MasterServer
 {
