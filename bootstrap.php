@@ -1,30 +1,41 @@
-<?php
+<?php declare(strict_types=1);
+
+
+/**
+ * Application Base Constants
+ *
+ * Core paths and namespaces used throughout the application.
+ */
 
 use App\Tools\Config\Config;
 
-/** Require composer classes autoloader php file */
-// require_once __DIR__ . '/vendor/autoload.php';
+const BASE_PATH = __DIR__;
+const APP_BASE_DIR_NAME = 'app';
+const APP_BASE_NAMESPACE = 'App\\';
+const TESTS_BASE_NAMESPACE = 'Test\\';
+const APP_BASE_PATH = BASE_PATH . '/' . APP_BASE_DIR_NAME . '/';
+const TESTS_BASE_PATH = BASE_PATH . '/tests/';
+const COMMANDS_PATH = BASE_PATH . '/' . APP_BASE_DIR_NAME . '/Commands';
+const COMMANDS_NAMESPACE = APP_BASE_NAMESPACE . 'Commands\\';
 
+
+/**
+ * Autoloader Registration
+ *
+ * PSR-4 style autoloader for application and test namespaces.
+ */
 spl_autoload_register(function ($class) {
-    // Namespace prefixes and their base directories
     $prefixes = [
-        'App\\'  => __DIR__ . '/app/',
-        'Test\\' => __DIR__ . '/tests/',
+        APP_BASE_NAMESPACE => APP_BASE_PATH,
+        TESTS_BASE_NAMESPACE => TESTS_BASE_PATH,
     ];
     foreach ($prefixes as $prefix => $baseDir) {
-        // Does the class use this namespace prefix?
         $len = strlen($prefix);
         if (strncmp($prefix, $class, $len) !== 0) {
             continue;
         }
-
-        // Get the relative class name (without namespace prefix)
         $relativeClass = substr($class, $len);
-
-        // Build the file path
         $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-
-        // Require the file if it exists
         if (file_exists($file)) {
             require $file;
             return;
@@ -32,17 +43,9 @@ spl_autoload_register(function ($class) {
     }
 });
 
-
-/** Set application base root path directory */
-const BASE_PATH = __DIR__;
-
-
-/** Require php define configs if exists */
-if (file_exists(BASE_PATH.'/config.php')){
-    require_once BASE_PATH.'/config.php';
-}
-
-
-/** Initialize app config manager and import user env values */
+/**
+ * Application Configuration
+ * Initialize config manager and load environment settings.
+ */
 Config::init();
 

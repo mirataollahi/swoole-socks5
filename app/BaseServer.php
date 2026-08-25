@@ -6,11 +6,11 @@ use App\HttpProxy\HttpProxyServer;
 use App\Master\MasterServer;
 use App\Metrics\MetricManager;
 use App\Socks\Socks5Server;
-use App\Tools\Config\Config;
 use App\Tools\Logger\Logger;
 use App\Tools\Logger\LogLevel;
 use App\Types\ProxyServer;
 use Throwable;
+use App\Tools\Config\Config;
 
 class BaseServer
 {
