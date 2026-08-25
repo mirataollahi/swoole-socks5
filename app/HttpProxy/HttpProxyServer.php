@@ -2,10 +2,10 @@
 
 namespace App\HttpProxy;
 
-use App\Tools\Config\Config;
 use App\Types\AbstractProxyServer;
 use App\Types\ProxyClient;
 use Swoole\Server;
+use App\Tools\Config\Config;
 
 class HttpProxyServer extends AbstractProxyServer
 {
